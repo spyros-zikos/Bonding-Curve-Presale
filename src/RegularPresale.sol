@@ -4,35 +4,63 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-// import "@openzeppelin/contracts/access/Ownable.sol";
-// import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-// import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-// import "@openzeppelin/contracts/utils/math/SafeMath.sol";
-// import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
+error StartTimeMustBeInFuture(uint256 startTime, uint256 currentTime);
+error CreationFeeNotCorrect(uint256 feePaid, uint256 actualFee);
+
+enum ProjectState {
+    Upcoming,
+    Live,
+    EndedSuccessfully,
+    EndedUnsuccessfully
+}
 
 struct Project {
     address token;
-    uint256 price;
+    uint256 price; // in USD, 18 decimals
     uint256 initialTokenAmount;
     uint256 raised;
     uint256 hardCap;
-    uint256 startDate;
-    uint256 endDate;
+    uint256 startTime;
+    uint256 endTime;
     address[] contributors;
+    ProjectState state;
 }
 
 contract RegularPresale is Ownable {
-    uint256 private s_lastProjectId;
+    uint256 creationFee;
+    address feeCollector;
+    uint256 private s_lastProjectId; // starts from 1
     mapping (uint256 id => Project project) private s_projectFromId;
 
-    constructor() Ownable(msg.sender) {}
+    constructor(uint256 _creationFee, address _feeCollector) Ownable(msg.sender) {
+        creationFee = _creationFee;
+        feeCollector = _feeCollector;
+    }
 
-    function createPresale(address _token, uint256 _price,  uint256 _initialTokenAmount,uint256 _hardCap, uint256 _startDate, uint256 _endDate) external payable {
+    function createPresale(
+        address _token,
+        uint256 _price,
+        uint256 _initialTokenAmount,
+        uint256 _hardCap,
+        uint256 _startTime,
+        uint256 _endTime
+    ) external payable {
+        // Check if startTime is in the future
+        if (block.timestamp > _startTime) {
+            revert StartTimeMustBeInFuture(_startTime, block.timestamp);
+        }
+        // TODO calculate creation fee
+        // uint256 creationFeeInUsd = getEthPrice() * creationFee / 10**18;
+        
+        // Check if the creation fee is correct
+        if (msg.value == creationFee) {
+            revert CreationFeeNotCorrect(msg.value, creationFee);
+        }
 
-        // TODO PAY FEE to owner of this contract
+        // TODO Pay fee to fee collector
 
         s_lastProjectId += 1;
-
         address[] memory _contributors;
         s_projectFromId[s_lastProjectId] = Project({
             token: _token,
@@ -40,9 +68,10 @@ contract RegularPresale is Ownable {
             initialTokenAmount: _initialTokenAmount,
             raised: 0,
             hardCap: _hardCap,
-            startDate: _startDate,
-            endDate: _endDate,
-            contributors: _contributors
+            startTime: _startTime,
+            endTime: _endTime,
+            contributors: _contributors,
+            state: ProjectState.Upcoming
         });
     }
 
@@ -50,7 +79,7 @@ contract RegularPresale is Ownable {
         // TODO
     }
 
-    function leavePresale() external {
+    function leaveAfterUnsuccessfulPresale() external {
         // TODO
     }
 
@@ -64,7 +93,7 @@ contract RegularPresale is Ownable {
 
     function withdrawFunds() external onlyOwner {
         require(address(this).balance > 0, "No funds to withdraw");
-        payable(owner()).transfer(address(this).balance);
+        payable(feeCollector).transfer(address(this).balance);
     }
 
     // TODO get stats functions
