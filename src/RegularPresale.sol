@@ -13,6 +13,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 struct Project {
     address token;
     uint256 price;
+    uint256 initialTokenAmount;
     uint256 raised;
     uint256 hardCap;
     uint256 startDate;
@@ -26,7 +27,7 @@ contract RegularPresale is Ownable {
 
     constructor() Ownable(msg.sender) {}
 
-    function createPresale(address _token, uint256 _price, uint256 _hardCap, uint256 _startDate, uint256 _endDate) external payable {
+    function createPresale(address _token, uint256 _price,  uint256 _initialTokenAmount,uint256 _hardCap, uint256 _startDate, uint256 _endDate) external payable {
 
         // TODO PAY FEE to owner of this contract
 
@@ -36,6 +37,7 @@ contract RegularPresale is Ownable {
         s_projectFromId[s_lastProjectId] = Project({
             token: _token,
             price: _price,
+            initialTokenAmount: _initialTokenAmount,
             raised: 0,
             hardCap: _hardCap,
             startDate: _startDate,
