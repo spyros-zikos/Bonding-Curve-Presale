@@ -13,5 +13,6 @@ docs/
 # Dotenv file
 .env
 
-# Initial file
+# files
 initialCode.txt
+script/HelperConfig.s.sol

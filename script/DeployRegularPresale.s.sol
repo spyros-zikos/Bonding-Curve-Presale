@@ -8,7 +8,7 @@ import {DeployERC20Ownable} from "./DeployERC20Ownable.s.sol";
 contract DeployRegularPresale is Script {
     function run() external returns(RegularPresale) {
         vm.startBroadcast();
-        RegularPresale presale = new RegularPresale(0, address(0));
+        RegularPresale presale = new RegularPresale(0, address(0), address(0));
         vm.stopBroadcast();
         return presale;
     }
