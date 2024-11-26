@@ -7,3 +7,9 @@
 [submodule "lib/chainlink-brownie-contracts"]
 	path = lib/chainlink-brownie-contracts
 	url = https://github.com/smartcontractkit/chainlink-brownie-contracts
+[submodule "lib/uniswap-v3-core"]
+	path = lib/uniswap-v3-core
+	url = https://github.com/Uniswap/v3-core
+[submodule "lib/uniswap-v3-periphery"]
+	path = lib/uniswap-v3-periphery
+	url = https://github.com/Uniswap/v3-periphery

@@ -4,8 +4,15 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {PriceConverter} from "./PriceConverter.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import {TickMath} from "./Uniswap/TickMath.sol";
+import {INonfungiblePositionManager} from "./Uniswap/INonfungiblePositionManager.sol";
+import {TransferHelper} from "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
+import {IWETH9} from "./Uniswap/IWETH9.sol";
 
 event ProjectCreated(
     uint256 lastProjectId,
@@ -60,6 +67,7 @@ struct Project {
 
 contract RegularPresale is Ownable, ReentrancyGuard {
     uint256 constant DECIMALS = 1e18;
+    uint24 constant UNISWAP_SWAP_FEE = 3000;  // 0.3%, don't change this
     uint256 private s_creationFee;
     uint256 private s_successfulEndFee; // percentage, e.g. 10e16 = 10%
     address private s_feeCollector;
@@ -67,6 +75,9 @@ contract RegularPresale is Ownable, ReentrancyGuard {
     uint256 private s_lastProjectId; // starts from 1
     mapping (uint256 id => Project project) private s_projectFromId;
     mapping (uint256 id => mapping(address contributor => uint256 tokenAmount)) s_tokensOwedToContributor;
+    address private s_uniFactory;
+    address private s_nonfungiblePositionManager;
+    address private s_weth;
 
     modifier validId(uint256 _id) {
         // Check if project id is valid
@@ -76,11 +87,22 @@ contract RegularPresale is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(uint256 _creationFee, uint256 _successfulEndFee, address _feeCollector, address _priceFeed) Ownable(msg.sender) {
+    constructor(
+        uint256 _creationFee,
+        uint256 _successfulEndFee,
+        address _feeCollector,
+        address _priceFeed,
+        address _uniFactory,
+        address _nonfungiblePositionManager,
+        address _weth
+    ) Ownable(msg.sender) {
         s_creationFee = _creationFee;
         s_successfulEndFee = _successfulEndFee;
         s_feeCollector = _feeCollector;
         s_priceFeed = AggregatorV3Interface(_priceFeed);
+        s_uniFactory = _uniFactory;
+        s_nonfungiblePositionManager = _nonfungiblePositionManager;
+        s_weth = _weth;
     }
 
     // Function to receive Ether. msg.data must be empty
@@ -233,8 +255,13 @@ contract RegularPresale is Ownable, ReentrancyGuard {
             // so that successfulEndFeeAmount is sent to creator
             // and successfulEndFeeAmount remains in the contract for the fee collector to collct
             uint256 amountRaisedAfterFees = s_projectFromId[_id].raised - (2 * successfulEndFeeAmount);
-            // TODO: send tokens to pool
-
+            // Wrap ETH into WETH
+            IWETH9(s_weth).deposit();
+            // Sort the tokens
+            (address token0, address token1, uint256 amount0, uint256 amount1) = 
+                _sortTokens(s_weth, s_projectFromId[_id].token, amountRaisedAfterFees, getMaxPresaleTokenAmount(_id));
+            // Deploy uniswap pool and add the tokens
+            _deployUniswapV3Pool(token0, token1, amount0, amount1);
         }
     }
 
@@ -296,6 +323,69 @@ contract RegularPresale is Ownable, ReentrancyGuard {
 
     function projectSuccessful(uint256 _id) public view returns (bool) {
         return getTotalTokensOwed(_id) >= getSoftCap(_id);
+    }
+
+    ////////////////////////////////////////
+    // Pool Deployments ////////////////////
+    ////////////////////////////////////////
+
+    ///// UNISWAP V3 /////
+
+    // Deploy Uniswap V3 Pool
+    function _deployUniswapV3Pool(address token0, address token1, uint256 token0Amount, uint256 token1Amount) private {
+        // deployments here: https://docs.uniswap.org/contracts/v3/reference/deployments/ethereum-deployments
+        _createUniswapV3Pool(token0, token1, token0Amount, token1Amount);
+        _addLiquidityToUniswapV3Pool(token0, token1, token0Amount, token1Amount);
+    }
+
+    // Create Uniswap v3 pool
+    function _createUniswapV3Pool(address token0, address token1, uint256 token0Amount, uint256 token1Amount) private {
+        address pool = IUniswapV3Factory(s_uniFactory).createPool(token0, token1, UNISWAP_SWAP_FEE);
+        uint256 price = token1Amount / token0Amount;
+        uint160 sqrtPriceX96 = uint160(Math.sqrt(price) * (2 ** 96));
+        IUniswapV3Pool(pool).initialize(sqrtPriceX96);
+    }
+
+    // All liquidity to Uniswap v3 pool
+    function _addLiquidityToUniswapV3Pool(address token0, address token1, uint256 token0Amount, uint256 token1Amount) private {
+        TransferHelper.safeApprove(token0, s_nonfungiblePositionManager, token0Amount);
+        TransferHelper.safeApprove(token1, s_nonfungiblePositionManager, token1Amount);
+        uint256 amount0Min = token0Amount * 99 / 100;  // 1% slippage
+        uint256 amount1Min = token1Amount * 99 / 100;  // 1% slippage
+
+        INonfungiblePositionManager.MintParams memory params =
+            INonfungiblePositionManager.MintParams({
+                token0: token0,
+                token1: token1,
+                fee: UNISWAP_SWAP_FEE,
+                tickLower: TickMath.MIN_TICK,
+                tickUpper: TickMath.MAX_TICK,
+                amount0Desired: token0Amount,
+                amount1Desired: token1Amount,
+                amount0Min: amount0Min,
+                amount1Min: amount1Min,
+                recipient: address(this),
+                deadline: block.timestamp
+            });
+        INonfungiblePositionManager(s_nonfungiblePositionManager).mint(params);
+    }
+
+    ///// Balancer V3 /////
+
+    function _deployBalancerV3Pool(uint256 ethAmount, uint256 tokenAmount) private {
+        // Deploy Balancer V3 Pool
+        
+    }
+
+    ///// Helpers /////
+
+    function _sortTokens(address _token0, address _token1, uint256 _tokenAmount0, uint256 _tokenAmount1) 
+        private pure returns (address token0, address token1, uint256 tokenAmount0, uint256 tokenAmount1)
+    {
+        (token0, token1, tokenAmount0, tokenAmount1) = 
+            _token0 < _token1
+            ? (_token0, _token1, _tokenAmount0, _tokenAmount1)
+            : (_token1, _token0, _tokenAmount1, _tokenAmount0);
     }
 
     // TODO get stats functions
