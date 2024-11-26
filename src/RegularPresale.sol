@@ -4,15 +4,13 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {PriceConverter} from "./PriceConverter.sol";
+import {PriceConverter} from "./lib/PriceConverter.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
-import {IUniswapV3Factory} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
-import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
-import {TickMath} from "./Uniswap/TickMath.sol";
-import {INonfungiblePositionManager} from "./Uniswap/INonfungiblePositionManager.sol";
-import {TransferHelper} from "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import {IWETH9} from "./Uniswap/IWETH9.sol";
+import {BalancerPoolDeployer} from "./Balancer/BalancerPoolDeployer.sol";
+import {UniswapPoolDeployer} from "./Uniswap/UniswapPoolDeployer.sol";
+import {Check} from "./lib/Check.sol";
+
 
 event ProjectCreated(
     uint256 lastProjectId,
@@ -24,34 +22,22 @@ event ProjectCreated(
 );
 event UserJoinedProject(uint256 id, address contributor, uint256 tokenAmount);
 event UserLeftProject(uint256 id, address contributor, uint256 etherToGiveBack);
+event UniswapPoolDeployed(address pool);
+event BalancerPoolDeployed(address pool);
 
-
-// Create presale errors
-error InvalidTokenAddress(address token);
-error InvalidTokenPrice(uint256 tokenPrice);
-error StartTimeMustBeInFuture(uint256 startTime, uint256 currentTime);
-error EndTimeMustBeAfterStartTime(uint256 startTime, uint256 endTime);
-error IncorrectCreationFee(uint256 feePaid, uint256 actualFee);
-error InitialTokenAmountMustBeEven(uint256 initialTokenAmount);
-// Join presale errors
-error InvalidProjectId(uint256 id);
-error ProjectIsNotPending(uint256 id);
-error ProjectHasNotStarted(uint256 id);
-error ProjectHasEnded(uint256 id);
-error NoMoreTokensToGive(uint256 id);
-// Leave presale errors
-error ProjectHasNotFailed(uint256 id);
-error UserHasNotContributed(uint256 id, address contributor);
-// End presale errors
-error ProjectHasNotEnded(uint256 id);
-// Other
-error EtherTransferFailed(address to, uint256 value);
 
 enum ProjectStatus {
     Pending,
     Success,
     Failed
 }
+
+
+enum PoolType {
+    Uniswap,
+    Balancer
+}
+
 
 struct Project {
     address token;
@@ -62,12 +48,15 @@ struct Project {
     uint256 endTime;
     address creator;
     address[] contributors;
-    ProjectStatus status;
+    ProjectStatus status;  // gets changed when endPresale is called
+    PoolType poolType;
 }
 
-contract RegularPresale is Ownable, ReentrancyGuard {
+
+contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, UniswapPoolDeployer {
     uint256 constant DECIMALS = 1e18;
     uint24 constant UNISWAP_SWAP_FEE = 3000;  // 0.3%, don't change this
+    uint256 constant BALANCER_SWAP_FEE = 0.3e16;  // 0.3%, don't change this
     uint256 private s_creationFee;
     uint256 private s_successfulEndFee; // percentage, e.g. 10e16 = 10%
     address private s_feeCollector;
@@ -75,15 +64,10 @@ contract RegularPresale is Ownable, ReentrancyGuard {
     uint256 private s_lastProjectId; // starts from 1
     mapping (uint256 id => Project project) private s_projectFromId;
     mapping (uint256 id => mapping(address contributor => uint256 tokenAmount)) s_tokensOwedToContributor;
-    address private s_uniFactory;
-    address private s_nonfungiblePositionManager;
     address private s_weth;
 
     modifier validId(uint256 _id) {
-        // Check if project id is valid
-        if (_id > s_lastProjectId || _id <= 0) {
-            revert InvalidProjectId(_id);
-        }
+        Check.validId(_id, s_lastProjectId);
         _;
     }
 
@@ -94,14 +78,19 @@ contract RegularPresale is Ownable, ReentrancyGuard {
         address _priceFeed,
         address _uniFactory,
         address _nonfungiblePositionManager,
-        address _weth
-    ) Ownable(msg.sender) {
+        address _weth,  // from uniswap
+        address _balancerVault,
+        address _balancerRouter,
+        address _balancerPermit2
+    ) 
+        Ownable(msg.sender)
+        BalancerPoolDeployer(_balancerVault, _balancerRouter, _balancerPermit2, BALANCER_SWAP_FEE)
+        UniswapPoolDeployer(_uniFactory, _nonfungiblePositionManager, UNISWAP_SWAP_FEE)
+    {
         s_creationFee = _creationFee;
         s_successfulEndFee = _successfulEndFee;
         s_feeCollector = _feeCollector;
         s_priceFeed = AggregatorV3Interface(_priceFeed);
-        s_uniFactory = _uniFactory;
-        s_nonfungiblePositionManager = _nonfungiblePositionManager;
         s_weth = _weth;
     }
 
@@ -111,42 +100,20 @@ contract RegularPresale is Ownable, ReentrancyGuard {
     function createPresale(
         address _token,
         uint256 _tokenPrice,
-        uint256 _initialTokenAmount, // must be even so that half goes to presale and half to pool
+        uint256 _initialTokenAmount, // must be even number so that half goes to presale and half to pool
         uint256 _startTime,
-        uint256 _endTime
+        uint256 _endTime,
+        PoolType _poolType
     ) external payable nonReentrant {  // probably does not need nonReentrant but just in case
-        ////////////////////////////////////////
-        // Checks //////////////////////////////
-        ////////////////////////////////////////
-        // Check if token address is valid
-        if (_token == address(0)) {
-            revert InvalidTokenAddress(_token);
-        }
-        // Check if token price is greater than 0
-        if (_tokenPrice <= 0) {
-            revert InvalidTokenPrice(_tokenPrice);
-        }
-        // Check if startTime is in the future
-        if (block.timestamp > _startTime) {
-            revert StartTimeMustBeInFuture(_startTime, block.timestamp);
-        }
-        // Check if endTime is after startTime
-        if (_endTime <= _startTime) {
-            revert EndTimeMustBeAfterStartTime(_startTime, _endTime);
-        }
+        Check.tokenIsValid(_token);
+        Check.tokenPriceIsValid(_tokenPrice);
+        Check.startTimeIsInTheFuture(_startTime);
+        Check.endTimeIsAfterStartTime(_startTime, _endTime);
         // Calculate fee paid
         uint256 msgValueInUsd = PriceConverter.getConversionRate(msg.value, s_priceFeed);
-        // Check if the fee paid is correct
-        if (msgValueInUsd != s_creationFee) {
-            revert IncorrectCreationFee(msgValueInUsd, s_creationFee);
-        }
-        // Check if initial token amount is an even number
-        if (_initialTokenAmount % 2 != 0) {
-            revert InitialTokenAmountMustBeEven(_initialTokenAmount);
-        }
-        ////////////////////////////////////////
-        // Actions /////////////////////////////
-        ////////////////////////////////////////
+        Check.correctFeePaid(msgValueInUsd, s_creationFee);
+        Check.initialTokenAmountIsEven(_initialTokenAmount);
+
         // Transfer initial token amount from user to this contract
         IERC20(_token).transferFrom(msg.sender, address(this), _initialTokenAmount);
         s_lastProjectId += 1;
@@ -160,34 +127,18 @@ contract RegularPresale is Ownable, ReentrancyGuard {
             endTime: _endTime,
             creator: msg.sender,
             contributors: _contributors,
-            status: ProjectStatus.Pending
+            status: ProjectStatus.Pending,
+            poolType: _poolType
         });
         emit ProjectCreated(s_lastProjectId, _token, _tokenPrice, _initialTokenAmount, _startTime, _endTime);
     }
 
     function joinProjectPresale(uint256 _id) external payable nonReentrant validId(_id) {
-        ////////////////////////////////////////
-        // Checks //////////////////////////////
-        ////////////////////////////////////////
-        // Check if the project is pending
-        if (s_projectFromId[_id].status != ProjectStatus.Pending) {
-            revert ProjectIsNotPending(_id);
-        }
-        // Check if the project is upcoming
-        if (s_projectFromId[_id].startTime > block.timestamp) {
-            revert ProjectHasNotStarted(_id);
-        }
-        // Check if the project has ended
-        if (projectHasEnded(_id)) {
-            revert ProjectHasEnded(_id);
-        }
-        // If no more tokens to give revert
-        if (getRemainingTokens(_id) == 0) {
-            revert NoMoreTokensToGive(_id);
-        }
-        ////////////////////////////////////////
-        // Actions /////////////////////////////
-        ////////////////////////////////////////
+        Check.projectIsPending(s_projectFromId[_id].status != ProjectStatus.Pending, _id);
+        Check.projectHasStarted(s_projectFromId[_id].startTime, _id);
+        Check.projectHasNotEnded(projectHasEnded(_id), _id);
+        Check.thereAreRemainingTokens(getRemainingTokens(_id), _id);
+
         uint256 tokenAmount = msg.value * DECIMALS / s_projectFromId[_id].price;
         // Check if contributions surpass max presale token amount, then give only what is left
         if (IERC20(s_projectFromId[_id].token).balanceOf(address(this)) + tokenAmount > getMaxPresaleTokenAmount(_id)) {
@@ -204,14 +155,8 @@ contract RegularPresale is Ownable, ReentrancyGuard {
 
     // Needs the user to approve the token transfer before calling this function
     function leaveAfterUnsuccessfulPresale(uint256 _id) external payable nonReentrant validId(_id) {
-        // Check if the project has failed
-        if (s_projectFromId[_id].status != ProjectStatus.Failed) {
-            revert ProjectHasNotFailed(_id);
-        }
-        // Check if user has contributed
-        if (!contributorExists(_id, msg.sender)) {
-            revert UserHasNotContributed(_id, msg.sender);
-        }
+        Check.projectHasFailed(s_projectFromId[_id].status != ProjectStatus.Failed, _id);
+        Check.userHasContributed(contributorExists(_id, msg.sender), _id, msg.sender);
 
         // Calculate ether to give back
         uint256 etherToGiveBack = s_tokensOwedToContributor[_id][msg.sender] * s_projectFromId[_id].price / DECIMALS;
@@ -222,32 +167,26 @@ contract RegularPresale is Ownable, ReentrancyGuard {
         emit UserLeftProject(_id, msg.sender, etherToGiveBack);
     }
 
+    // Should be called when presale has pendinig status but has either succeded or time ended
     function endPresale(uint256 _id) external nonReentrant validId(_id) {
-        // Check if the project is pending
-        if (s_projectFromId[_id].status != ProjectStatus.Pending) {
-            revert ProjectIsNotPending(_id);
-        }
+        Check.projectIsPending(s_projectFromId[_id].status != ProjectStatus.Pending, _id);
+        Check.projectHasEnded(projectHasEnded(_id), _id);
 
-        if (projectHasEnded(_id)) {
-            if (projectSuccessful(_id)) {
-                s_projectFromId[_id].status = ProjectStatus.Success;
-            } else {
-                s_projectFromId[_id].status = ProjectStatus.Failed;
-            }
+        if (projectSuccessful(_id)) {
+            s_projectFromId[_id].status = ProjectStatus.Success;
         } else {
-            revert ProjectHasNotEnded(_id);
+            s_projectFromId[_id].status = ProjectStatus.Failed;
         }
 
         if (projectSuccessful(_id)) {
-            
-            // TODO: distribute tokens to contributors
+            // Distribute tokens to contributors
             for (uint256 i = 0; i < s_projectFromId[_id].contributors.length; i++) {
                 address contributor = s_projectFromId[_id].contributors[i];
                 uint256 tokensToGive = s_tokensOwedToContributor[_id][contributor];
                 IERC20(s_projectFromId[_id].token).transfer(contributor, tokensToGive);
                 s_tokensOwedToContributor[_id][contributor] = 0; // that's probably not needed
             }
-            // Calculate successful-end fee ether amount
+            // Calculate successful-end fee (in ether)
             uint256 successfulEndFeeAmount = s_projectFromId[_id].raised * s_successfulEndFee / 1e18;
             // Send ether as fee to project creator
             sendEther(payable(s_projectFromId[_id].creator), successfulEndFeeAmount);
@@ -256,12 +195,12 @@ contract RegularPresale is Ownable, ReentrancyGuard {
             // and successfulEndFeeAmount remains in the contract for the fee collector to collct
             uint256 amountRaisedAfterFees = s_projectFromId[_id].raised - (2 * successfulEndFeeAmount);
             // Wrap ETH into WETH
-            IWETH9(s_weth).deposit();
+            IWETH9(s_weth).deposit{value: amountRaisedAfterFees}();
             // Sort the tokens
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
                 _sortTokens(s_weth, s_projectFromId[_id].token, amountRaisedAfterFees, getMaxPresaleTokenAmount(_id));
-            // Deploy uniswap pool and add the tokens
-            _deployUniswapV3Pool(token0, token1, amount0, amount1);
+            // Deploy the pool
+            _deployPool(_id, token0, token1, amount0, amount1);
         }
     }
 
@@ -312,69 +251,30 @@ contract RegularPresale is Ownable, ReentrancyGuard {
     function sendEther(address payable _to, uint256 _value) private {
         // Call returns a boolean value indicating success or failure.
         (bool sent,) = _to.call{value: _value}("");
-        if (!sent) {
-            revert EtherTransferFailed(_to, _value);
-        }
+        Check.etherTransferSuccess(sent, _to, _value);
     }
 
     function projectHasEnded(uint256 _id) public view returns (bool) {
-        return s_projectFromId[_id].endTime < block.timestamp;
+        return s_projectFromId[_id].endTime < block.timestamp || getRemainingTokens(_id) == 0;
     }
 
     function projectSuccessful(uint256 _id) public view returns (bool) {
         return getTotalTokensOwed(_id) >= getSoftCap(_id);
     }
 
-    ////////////////////////////////////////
-    // Pool Deployments ////////////////////
-    ////////////////////////////////////////
+    ///// Deploy Pool /////
 
-    ///// UNISWAP V3 /////
-
-    // Deploy Uniswap V3 Pool
-    function _deployUniswapV3Pool(address token0, address token1, uint256 token0Amount, uint256 token1Amount) private {
-        // deployments here: https://docs.uniswap.org/contracts/v3/reference/deployments/ethereum-deployments
-        _createUniswapV3Pool(token0, token1, token0Amount, token1Amount);
-        _addLiquidityToUniswapV3Pool(token0, token1, token0Amount, token1Amount);
-    }
-
-    // Create Uniswap v3 pool
-    function _createUniswapV3Pool(address token0, address token1, uint256 token0Amount, uint256 token1Amount) private {
-        address pool = IUniswapV3Factory(s_uniFactory).createPool(token0, token1, UNISWAP_SWAP_FEE);
-        uint256 price = token1Amount / token0Amount;
-        uint160 sqrtPriceX96 = uint160(Math.sqrt(price) * (2 ** 96));
-        IUniswapV3Pool(pool).initialize(sqrtPriceX96);
-    }
-
-    // All liquidity to Uniswap v3 pool
-    function _addLiquidityToUniswapV3Pool(address token0, address token1, uint256 token0Amount, uint256 token1Amount) private {
-        TransferHelper.safeApprove(token0, s_nonfungiblePositionManager, token0Amount);
-        TransferHelper.safeApprove(token1, s_nonfungiblePositionManager, token1Amount);
-        uint256 amount0Min = token0Amount * 99 / 100;  // 1% slippage
-        uint256 amount1Min = token1Amount * 99 / 100;  // 1% slippage
-
-        INonfungiblePositionManager.MintParams memory params =
-            INonfungiblePositionManager.MintParams({
-                token0: token0,
-                token1: token1,
-                fee: UNISWAP_SWAP_FEE,
-                tickLower: TickMath.MIN_TICK,
-                tickUpper: TickMath.MAX_TICK,
-                amount0Desired: token0Amount,
-                amount1Desired: token1Amount,
-                amount0Min: amount0Min,
-                amount1Min: amount1Min,
-                recipient: address(this),
-                deadline: block.timestamp
-            });
-        INonfungiblePositionManager(s_nonfungiblePositionManager).mint(params);
-    }
-
-    ///// Balancer V3 /////
-
-    function _deployBalancerV3Pool(uint256 ethAmount, uint256 tokenAmount) private {
-        // Deploy Balancer V3 Pool
-        
+    function _deployPool(uint256 _id, address _token0, address _token1, uint256 _amount0, uint256 _amount1) private {
+        address pool;
+        if (s_projectFromId[_id].poolType == PoolType.Uniswap) {
+            // Deploy uniswap pool and add the tokens
+            pool = deployUniswapPool(_token0, _token1, _amount0, _amount1);
+            emit UniswapPoolDeployed(pool);
+        } else {
+            // Deploy balancer pool and add the tokens
+            pool = deployConstantProductPool(_token0, _token1, _amount0, _amount1);
+            emit BalancerPoolDeployed(pool);
+        }
     }
 
     ///// Helpers /////
@@ -390,5 +290,5 @@ contract RegularPresale is Ownable, ReentrancyGuard {
 
     // TODO get stats functions
 
-    // Future: check fees in range
+    // Future: check fees in range 0-100, improve for loops gaswise
 }

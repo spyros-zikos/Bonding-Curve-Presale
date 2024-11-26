@@ -16,7 +16,7 @@ clean  :; forge clean
 # Remove modules
 remove :; rm -rf .gitmodules && rm -rf .git/modules/* && rm -rf lib && touch .gitmodules && git add . && git commit -m "modules"
 
-install :; forge install openzeppelin/openzeppelin-contracts@v5.1.0 --no-commit && forge install smartcontractkit/chainlink-brownie-contracts@1.3.0 --no-commit && forge install uniswap-v3-core=Uniswap/v3-core --no-commit && forge install uniswap-v3-periphery=Uniswap/v3-periphery --no-commit
+install :; forge install openzeppelin/openzeppelin-contracts@v5.1.0 --no-commit && forge install smartcontractkit/chainlink-brownie-contracts@1.3.0 --no-commit && forge install uniswap-v3-core=Uniswap/v3-core --no-commit && forge install uniswap-v3-periphery=Uniswap/v3-periphery --no-commit && forge install balancer/scaffold-balancer-v3 --no-commit && forge install balancer/balancer-v3-monorepo --no-commit && forge install permit2=Uniswap/permit2 --no-commit
 
 # Update Dependencies
 update:; forge update
