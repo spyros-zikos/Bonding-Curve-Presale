@@ -20,7 +20,9 @@ error UserHasNotContributed(uint256 id, address contributor);
 error ProjectHasNotEnded(uint256 id);
 
 error EtherTransferFailed(address to, uint256 value);
-
+error MsgValueIsZero();
+error UserHasNoTokenBalance(uint256 balance, uint256 tokenAmount, uint256 id);
+error tokenAmountIsZero();
 
 library Check {
     function validId(uint256 id, uint256 lastProjectId) internal pure {
@@ -124,6 +126,27 @@ library Check {
         // Check if ether transfer was successful
         if (!sent) {
             revert EtherTransferFailed(to, value);
+        }
+    }
+
+    function msgValueIsGreaterThanZero() internal view {
+        // Check if msg.value is greater than 0
+        if (msg.value == 0) {
+            revert MsgValueIsZero();
+        }
+    }
+
+    function userHasTokenBalance(uint256 balance, uint256 tokenAmount, uint256 id) internal pure {
+        // Check if user has token balance
+        if (balance >= tokenAmount) {
+            revert UserHasNoTokenBalance(balance, tokenAmount, id);
+        }
+    }
+
+    function tokenAmountIsGreaterThanZero(uint256 tokenAmount) internal pure {
+        // Check if token amount is greater than 0
+        if (tokenAmount == 0) {
+            revert tokenAmountIsZero();
         }
     }
 }
