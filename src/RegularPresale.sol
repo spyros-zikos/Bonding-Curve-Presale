@@ -64,7 +64,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
     AggregatorV3Interface internal s_priceFeed;
     uint256 internal s_lastProjectId; // starts from 1
     mapping (uint256 id => Project project) private s_projectFromId;
-    mapping (uint256 id => mapping(address contributor => uint256 tokenAmount)) s_tokensOwedToContributor;
+    mapping (uint256 id => mapping(address contributor => uint256 tokenAmount)) private s_tokensOwedToContributor;
     address internal s_weth;
 
     modifier validId(uint256 _id) virtual {
@@ -136,7 +136,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
     }
 
     function joinProjectPresale(uint256 _id) external payable virtual nonReentrant validId(_id) {
-        Check.projectIsPending(s_projectFromId[_id].status != ProjectStatus.Pending, _id);
+        Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasStarted(s_projectFromId[_id].startTime, _id);
         Check.projectHasNotEnded(projectHasEnded(_id), _id);
         Check.thereAreRemainingTokens(getRemainingTokens(_id), _id);
@@ -144,7 +144,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
 
         uint256 tokenAmount = msg.value * DECIMALS / s_projectFromId[_id].price;
         // Check if contributions surpass max presale token amount, then give only what is left
-        if (getRemainingTokens(_id) + tokenAmount > getMaxPresaleTokenAmount(_id)) {
+        if (getRemainingTokens(_id) > tokenAmount) {
             tokenAmount = getRemainingTokens(_id);
         }
         // Add contributor to project
@@ -171,7 +171,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
 
     // Should be called when presale has pendinig status but has either succeded or time ended
     function endPresale(uint256 _id) external virtual nonReentrant validId(_id) {
-        Check.projectIsPending(s_projectFromId[_id].status != ProjectStatus.Pending, _id);
+        Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasEnded(projectHasEnded(_id), _id);
 
         // Update project status
@@ -183,7 +183,6 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
                 address contributor = s_projectFromId[_id].contributors[i];
                 uint256 tokensToGive = s_tokensOwedToContributor[_id][contributor];
                 IERC20(s_projectFromId[_id].token).transfer(contributor, tokensToGive);
-                s_tokensOwedToContributor[_id][contributor] = 0; // that's probably not needed
             }
             // Calculate successful-end fee (in ether)
             uint256 successfulEndFeeAmount = s_projectFromId[_id].raised * s_successfulEndFee / DECIMALS;

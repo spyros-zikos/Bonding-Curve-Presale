@@ -24,7 +24,7 @@ contract UniswapPoolDeployer {
     function deployUniswapPool(address token0, address token1, uint256 token0Amount, uint256 token1Amount) internal returns(address pool) {
         // Create Uniswap v3 pool
         pool = IUniswapV3Factory(factory).createPool(token0, token1, swapFee);
-        uint256 price = token1Amount / token0Amount;
+        uint256 price = token1Amount * 1e18 / token0Amount;
         uint160 sqrtPriceX96 = uint160(Math.sqrt(price) * (2 ** 96));
         IUniswapV3Pool(pool).initialize(sqrtPriceX96);
         
@@ -32,8 +32,8 @@ contract UniswapPoolDeployer {
         // Add liquidity to Uniswap v3 pool
         TransferHelper.safeApprove(token0, nonfungiblePositionManager, token0Amount);
         TransferHelper.safeApprove(token1, nonfungiblePositionManager, token1Amount);
-        uint256 amount0Min = token0Amount * 99 / 100;  // 1% slippage
-        uint256 amount1Min = token1Amount * 99 / 100;  // 1% slippage
+        uint256 amount0Min = token0Amount * 0 / 100;  // 100% slippage
+        uint256 amount1Min = token1Amount * 0 / 100;  // 100% slippage
 
         INonfungiblePositionManager.MintParams memory params =
             INonfungiblePositionManager.MintParams({

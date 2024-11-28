@@ -65,7 +65,7 @@ library Check {
 
     function correctFeePaid(uint256 feePaid, uint256 actualFee) internal pure {
         // Check if the fee paid is correct
-        if (feePaid != actualFee) {
+        if (feePaid < (actualFee - (actualFee / 1000)) || feePaid > (actualFee + (actualFee / 1000))) { // add 0.1% buffer
             revert IncorrectCreationFee(feePaid, actualFee);
         }
     }

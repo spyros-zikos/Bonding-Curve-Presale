@@ -7,7 +7,7 @@ import {Script, console2} from "forge-std/Script.sol";
 abstract contract CodeConstants {
     // uint8 public constant DECIMALS = 8;
     // int256 public constant INITIAL_PRICE = 2000e8;
-    uint256 public constant CREATION_FEE = 200; // in $
+    uint256 public constant CREATION_FEE = 200e18; // in $
     uint256 public constant SUCCESSFUL_END_FEE = 5e16; // percentage, e.g. 5e16 = 5%
 
     /*//////////////////////////////////////////////////////////////
@@ -78,7 +78,7 @@ contract HelperConfig is CodeConstants, Script {
         return NetworkConfig({
             creationFee: CREATION_FEE,
             successfulEndFee: SUCCESSFUL_END_FEE,
-            feeCollector: address(uint160(vm.envUint("FEE_COLLECTOR"))),
+            feeCollector: address(uint160(vm.envUint("FEE_COLLECTOR"))), // address of the private key
             priceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
             uniFactory: 0x0227628f3F023bb0B980b67D528571c95c6DaC1c,
             nonfungiblePositionManager: 0x1238536071E1c677A632429e3655c799b22cDA52,

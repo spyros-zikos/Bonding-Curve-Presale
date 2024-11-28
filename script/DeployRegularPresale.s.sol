@@ -7,7 +7,7 @@ import {DeployERC20Ownable} from "./DeployERC20Ownable.s.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 
 contract DeployRegularPresale is Script {
-    function run() external returns(RegularPresale) {
+    function run() external returns(RegularPresale, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         HelperConfig.NetworkConfig memory config = helperConfig.getConfig();
 
@@ -23,9 +23,8 @@ contract DeployRegularPresale is Script {
             config.balancerVault,
             config.balancerRouter,
             config.balancerPermit2
-
         );
         vm.stopBroadcast();
-        return presale;
+        return (presale, helperConfig);
     }
 }

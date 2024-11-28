@@ -100,7 +100,7 @@ contract BondingCurvePresale is RegularPresale{
     }
     
     function joinProjectPresale(uint256 _id) external payable override nonReentrant validId(_id) {
-        Check.projectIsPending(s_projectFromId[_id].status != ProjectStatus.Pending, _id);
+        Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasStarted(s_projectFromId[_id].startTime, _id);
         Check.projectHasNotEnded(projectHasEnded(_id), _id);
         Check.thereAreRemainingTokens(getRemainingTokens(_id), _id);
@@ -109,7 +109,7 @@ contract BondingCurvePresale is RegularPresale{
         uint256 oldSupply = s_projectFromId[_id].initialTokenAmount - IERC20(s_projectFromId[_id].token).balanceOf(address(this));
         uint256 tokenAmount = calculateBuyAmount(msg.value, oldSupply);
         // Check if contributions surpass max presale token amount, then give only what is left
-        if (getRemainingTokens(_id) > tokenAmount ) {
+        if (getRemainingTokens(_id) > tokenAmount) {
             tokenAmount = getRemainingTokens(_id);
         }
 
@@ -123,7 +123,7 @@ contract BondingCurvePresale is RegularPresale{
     }
 
     function leaveOngoingProjectPresale(uint256 _id, uint256 _tokenAmount) external nonReentrant validId(_id) {
-        Check.projectIsPending(s_projectFromId[_id].status != ProjectStatus.Pending, _id);
+        Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasStarted(s_projectFromId[_id].startTime, _id);
         Check.projectHasNotEnded(projectHasEnded(_id), _id);
         Check.tokenAmountIsGreaterThanZero(_tokenAmount);
@@ -155,7 +155,7 @@ contract BondingCurvePresale is RegularPresale{
 
     // Should be called when presale has pendinig status but has either succeded or time ended
     function endPresale(uint256 _id) external override nonReentrant validId(_id) {
-        Check.projectIsPending(s_projectFromId[_id].status != ProjectStatus.Pending, _id);
+        Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasEnded(projectHasEnded(_id), _id);
 
         // Update project status
