@@ -22,7 +22,11 @@ error ProjectHasNotEnded(uint256 id);
 error EtherTransferFailed(address to, uint256 value);
 error MsgValueIsZero();
 error UserHasNoTokenBalance(uint256 balance, uint256 tokenAmount, uint256 id);
-error tokenAmountIsZero();
+error TokenAmountIsZero();
+error UserIsNotProjectCreator();
+error ProjectHasNotEndedSuccessfully(uint256 id);
+error LockPeriodIsNotOver(uint256 currentTime, uint256 endTime, uint256 id);
+error CreatorHasClaimedLockedTokens(uint256 id);
 
 library Check {
     function validId(uint256 id, uint256 lastProjectId) internal pure {
@@ -146,7 +150,35 @@ library Check {
     function tokenAmountIsGreaterThanZero(uint256 tokenAmount) internal pure {
         // Check if token amount is greater than 0
         if (tokenAmount == 0) {
-            revert tokenAmountIsZero();
+            revert TokenAmountIsZero();
+        }
+    }
+
+    function msgSenderIsProjectCreator(bool isCreator) internal pure {
+        // Check if msg.sender is the project creator
+        if (!isCreator) {
+            revert UserIsNotProjectCreator();
+        }
+    }
+
+    function projectIsSuccessful(bool successful, uint256 id) internal pure {
+        // Check if project is successful
+        if (!successful) {
+            revert ProjectHasNotEndedSuccessfully(id);
+        }
+    }
+
+    function lockPeriodIsOver(uint256 endTime, uint256 id) internal view {
+        // Check if lock period is over
+        if (block.timestamp < endTime) {
+            revert LockPeriodIsNotOver(block.timestamp, endTime, id);
+        }
+    }
+
+    function creatorHasNotClaimedLockedTokens(bool hasClaimed, uint256 id) internal pure {
+        // Check if creator has not claimed locked tokens
+        if (hasClaimed) {
+            revert CreatorHasClaimedLockedTokens(id);
         }
     }
 }

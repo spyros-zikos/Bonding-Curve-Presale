@@ -59,7 +59,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
     uint24 internal constant UNISWAP_SWAP_FEE = 3000;  // 0.3%, don't change this
     uint256 internal constant BALANCER_SWAP_FEE = 0.3e16;  // 0.3%, don't change this
     uint256 internal s_creationFee;
-    uint256 internal s_successfulEndFee; // percentage, e.g. 10e16 = 10%
+    uint256 internal s_successfulEndFee; // percentage, e.g. 5e16 = 5% - the presale creator an the fee collector get amount raised * s_successfulEndFee / DECIMALS
     address internal s_feeCollector;
     AggregatorV3Interface internal s_priceFeed;
     uint256 internal s_lastProjectId; // starts from 1
