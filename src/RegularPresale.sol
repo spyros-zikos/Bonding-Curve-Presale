@@ -286,8 +286,6 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         }
     }
 
-    ////////////////// Private //////////////////////////
-
     function _sortTokens(address _token0, address _token1, uint256 _tokenAmount0, uint256 _tokenAmount1) 
         internal pure returns (address token0, address token1, uint256 tokenAmount0, uint256 tokenAmount1)
     {
@@ -297,8 +295,5 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
             : (_token1, _token0, _tokenAmount1, _tokenAmount0);
     }
 
-
-
-    // TODO get stats functions
     // Future: check fees in range 0-100, improve for loops gaswise
 }

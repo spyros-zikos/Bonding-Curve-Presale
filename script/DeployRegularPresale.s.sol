@@ -4,22 +4,28 @@ pragma solidity ^0.8.24;
 import {Script} from "forge-std/Script.sol";
 import {RegularPresale} from "../src/RegularPresale.sol";
 import {DeployERC20Ownable} from "./DeployERC20Ownable.s.sol";
+import {HelperConfig} from "./HelperConfig.s.sol";
 
 contract DeployRegularPresale is Script {
-    // function run() external returns(RegularPresale) {
-    //     vm.startBroadcast();
-    //     RegularPresale presale = new RegularPresale(0, 0, address(0), address(0));
-    //     vm.stopBroadcast();
-    //     return presale;
-    // }
-}
+    function run() external returns(RegularPresale) {
+        HelperConfig helperConfig = new HelperConfig();
+        HelperConfig.NetworkConfig memory config = helperConfig.getConfig();
 
-// contract DeployRegularPresaleAndCreatePresale is Script {
-//     function run() external {
-//         vm.startBroadcast();
-//         RegularPresale presale = (new DeployRegularPresale()).run();
-//         address token = (new DeployERC20Ownable()).run();
-//         presale.createPresale(token, 0, 0, 0, 0, 0);
-//         vm.stopBroadcast();
-//     }
-// }
+        vm.startBroadcast(config.deployerKey);
+        RegularPresale presale = new RegularPresale(
+            config.creationFee,
+            config.successfulEndFee,
+            config.feeCollector,
+            config.priceFeed,
+            config.uniFactory,
+            config.nonfungiblePositionManager,
+            config.weth,  // from uniswap
+            config.balancerVault,
+            config.balancerRouter,
+            config.balancerPermit2
+
+        );
+        vm.stopBroadcast();
+        return presale;
+    }
+}
