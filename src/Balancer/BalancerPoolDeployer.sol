@@ -14,7 +14,7 @@ import { InputHelpers } from "@balancer-labs/v3-solidity-utils/contracts/helpers
 import { IVault } from "@balancer-labs/v3-interfaces/contracts/vault/IVault.sol";
 
 import { CustomPoolConfig, InitializationConfig } from "@balancer/scaffold-balancer-v3/packages/foundry/script/PoolHelpers.sol";
-import { ScaffoldHelpers, console } from "@balancer/scaffold-balancer-v3/packages/foundry/script/ScaffoldHelpers.sol";
+import { console } from "@balancer/scaffold-balancer-v3/packages/foundry/script/ScaffoldHelpers.sol";
 import { ConstantProductFactory } from "@balancer/scaffold-balancer-v3/packages/foundry/contracts/factories/ConstantProductFactory.sol";
 import { PoolHelpers } from "src/Balancer/PoolHelpers.sol";
 import { IPermit2 } from "permit2/src/interfaces/IPermit2.sol";
@@ -24,7 +24,7 @@ import { IRouter } from "@balancer-labs/v3-interfaces/contracts/vault/IRouter.so
  * @title Deploy Constant Product Pool
  * @notice Deploys, registers, and initializes a constant product pool that uses a Lottery Hook
  */
-contract BalancerPoolDeployer is PoolHelpers, ScaffoldHelpers {
+contract BalancerPoolDeployer is PoolHelpers {
     IVault internal vault;
     IRouter internal router;
     uint256 internal swapFee;
@@ -39,10 +39,6 @@ contract BalancerPoolDeployer is PoolHelpers, ScaffoldHelpers {
         // Set the deployment configurations
         CustomPoolConfig memory poolConfig = getProductPoolConfig(token1, token2);
         InitializationConfig memory initConfig = getProductPoolInitConfig(token1, token2, amount1, amount2);
-
-        // Start creating the transactions
-        uint256 deployerPrivateKey = getDeployerPrivateKey();
-        vm.startBroadcast(deployerPrivateKey);
 
         // TODO: Use already deployed factory
         // Deploy a factory
@@ -76,7 +72,6 @@ contract BalancerPoolDeployer is PoolHelpers, ScaffoldHelpers {
             initConfig.userData
         );
         console.log("Constant Product Pool initialized successfully!");
-        vm.stopBroadcast();
 
         return pool;
     }
@@ -153,7 +148,7 @@ contract BalancerPoolDeployer is PoolHelpers, ScaffoldHelpers {
         uint256[] memory exactAmountsIn = new uint256[](2); // Exact amounts of tokens to be added, sorted in token alphanumeric order
         exactAmountsIn[0] = amount1; // amount of token1 to send during pool initialization
         exactAmountsIn[1] = amount2; // amount of token2 to send during pool initialization
-        uint256 minBptAmountOut = 49e18; // Minimum amount of pool tokens to be received
+        uint256 minBptAmountOut = 0; // Minimum amount of pool tokens to be received
         bool wethIsEth = false; // If true, incoming ETH will be wrapped to WETH; otherwise the Vault will pull WETH tokens
         bytes memory userData = bytes(""); // Additional (optional) data required for adding initial liquidity
 

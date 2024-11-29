@@ -51,13 +51,15 @@ struct Project {
     address[] contributors;
     ProjectStatus status;  // gets changed when endPresale is called
     PoolType poolType;
+    address pool;
 }
 
 
 contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, UniswapPoolDeployer {
     uint256 internal constant DECIMALS = 1e18;
     uint24 internal constant UNISWAP_SWAP_FEE = 3000;  // 0.3%, don't change this
-    uint256 internal constant BALANCER_SWAP_FEE = 0.3e16;  // 0.3%, don't change this
+    uint256 internal constant BALANCER_SWAP_FEE = 0.3e16;  // 0.3%
+    uint256 internal constant SOFTCAP_PERCENTAGE = 30e16;  // 30%
     uint256 internal s_creationFee;
     uint256 internal s_successfulEndFee; // percentage, e.g. 5e16 = 5% - the presale creator an the fee collector get amount raised * s_successfulEndFee / DECIMALS
     address internal s_feeCollector;
@@ -130,7 +132,8 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
             creator: msg.sender,
             contributors: _contributors,
             status: ProjectStatus.Pending,
-            poolType: _poolType
+            poolType: _poolType,
+            pool: address(0)
         });
         emit ProjectCreated(s_lastProjectId, _token, _tokenPrice, _initialTokenAmount, _startTime, _endTime);
     }
@@ -144,7 +147,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
 
         uint256 tokenAmount = msg.value * DECIMALS / s_projectFromId[_id].price;
         // Check if contributions surpass max presale token amount, then give only what is left
-        if (getRemainingTokens(_id) > tokenAmount) {
+        if (getRemainingTokens(_id) < tokenAmount) {
             tokenAmount = getRemainingTokens(_id);
         }
         // Add contributor to project
@@ -198,7 +201,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
                 _sortTokens(s_weth, s_projectFromId[_id].token, amountRaisedAfterFees, getTotalTokensOwed(_id));
             // Deploy the pool
-            _deployPool(_id, token0, token1, amount0, amount1);
+            s_projectFromId[_id].pool = _deployPool(_id, token0, token1, amount0, amount1);
         }
         // Send remaining/all (depending on project being successful/failed) tokens to project creator
         uint256 remainingTokens = IERC20(s_projectFromId[_id].token).balanceOf(address(this));
@@ -212,10 +215,14 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         payable(s_feeCollector).transfer(address(this).balance);
     }
 
+    function getProject(uint256 _id) external view returns (Project memory) {
+        return s_projectFromId[_id];
+    }
+
     ////////////////// Public //////////////////////////
 
     function getSoftCap(uint256 _id) public view returns (uint256) {
-        return getMaxPresaleTokenAmount(s_projectFromId[_id].initialTokenAmount) * 3 / 10;
+        return getMaxPresaleTokenAmount(_id) * SOFTCAP_PERCENTAGE / DECIMALS;
     }
 
     function getTotalTokensOwed(uint256 _id) public view returns (uint256) {
@@ -226,7 +233,6 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         return totalTokensOwed;
     }
 
-    // Should be equal to getTotalTokensOwed function
     function getRemainingTokens(uint256 _id) public view returns (uint256) {
         // max tokens that can be presold
         uint256 maxTokensToBeDistributed = getMaxPresaleTokenAmount(_id);
@@ -272,8 +278,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         Check.etherTransferSuccess(sent, _to, _value);
     }
 
-    function _deployPool(uint256 _id, address _token0, address _token1, uint256 _amount0, uint256 _amount1) internal {
-        address pool;
+    function _deployPool(uint256 _id, address _token0, address _token1, uint256 _amount0, uint256 _amount1) internal returns(address pool) {
         if (s_projectFromId[_id].poolType == PoolType.Uniswap) {
             // Deploy uniswap pool and add the tokens
             pool = deployUniswapPool(_token0, _token1, _amount0, _amount1);

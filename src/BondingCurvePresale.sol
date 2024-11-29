@@ -24,6 +24,7 @@ struct Project {
     address[] contributors;
     ProjectStatus status;  // gets changed when endPresale is called
     PoolType poolType;
+    address pool;
     uint256 priceAfterFailure;
     bool creatorClaimedLockedTokens;
 }
@@ -93,6 +94,7 @@ contract BondingCurvePresale is RegularPresale{
             contributors: _contributors,
             status: ProjectStatus.Pending,
             poolType: _poolType,
+            pool: address(0),
             priceAfterFailure: 0,
             creatorClaimedLockedTokens: false
         });
@@ -109,7 +111,7 @@ contract BondingCurvePresale is RegularPresale{
         uint256 oldSupply = s_projectFromId[_id].initialTokenAmount - IERC20(s_projectFromId[_id].token).balanceOf(address(this));
         uint256 tokenAmount = calculateBuyAmount(msg.value, oldSupply);
         // Check if contributions surpass max presale token amount, then give only what is left
-        if (getRemainingTokens(_id) > tokenAmount) {
+        if (getRemainingTokens(_id) < tokenAmount) {
             tokenAmount = getRemainingTokens(_id);
         }
 
@@ -177,7 +179,7 @@ contract BondingCurvePresale is RegularPresale{
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
                 _sortTokens(s_weth, s_projectFromId[_id].token, amountRaisedAfterFees, getTotalTokensOwed(_id));
             // Deploy the pool
-            _deployPool(_id, token0, token1, amount0, amount1);
+            s_projectFromId[_id].pool = _deployPool(_id, token0, token1, amount0, amount1);
         } else {
             // Calculate price after failure
             s_projectFromId[_id].priceAfterFailure = s_projectFromId[_id].raised * DECIMALS / getTotalTokensOwed(_id);
