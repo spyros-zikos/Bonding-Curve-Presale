@@ -76,7 +76,7 @@ contract RegularPresaleTest is Test {
         // Check if project indeed failed
         assert(presale.getTotalTokensOwed(id) == INVESTOR1_JOIN_AMOUNT + INVESTOR2_JOIN_AMOUNT);
         assert(presale.getSoftCap(id) == (INITIAL_SUPPLY / 2) * 3 / 10);
-        assert(presale.getProject(id).status == ProjectStatus.Failed);
+        assert(presale.getRPProject(id).status == ProjectStatus.Failed);
 
         uint256 investor1EthBalanceBeforeExit = investor1.balance;
         assert(investor1EthBalanceBeforeExit == 0);
@@ -89,7 +89,7 @@ contract RegularPresaleTest is Test {
 
         uint256 investor2EthBalanceBeforeExit = investor2.balance;
         assert(investor2EthBalanceBeforeExit == 0);
-        vm.warp(START_TIME + 1002);
+        vm.warp(START_TIME + 1003);
         vm.prank(investor2);
         presale.leaveUnsuccessfulProjectPresale(id);
         console.log("investor2 left failed presale");
@@ -126,7 +126,7 @@ contract RegularPresaleTest is Test {
         // Check if project succeded
         assert(presale.getTotalTokensOwed(id) == INVESTOR1_JOIN_AMOUNT + INVESTOR2_JOIN_AMOUNT + INVESTOR3_JOIN_AMOUNT);
         assert(presale.getSoftCap(id) == (INITIAL_SUPPLY / 2) * 3 / 10);
-        assert(presale.getProject(id).status == ProjectStatus.Success);
+        assert(presale.getRPProject(id).status == ProjectStatus.Success);
 
         // Reverts
         vm.warp(START_TIME + 1002);

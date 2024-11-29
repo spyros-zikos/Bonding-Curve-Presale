@@ -142,7 +142,7 @@ library Check {
 
     function userHasTokenBalance(uint256 balance, uint256 tokenAmount, uint256 id) internal pure {
         // Check if user has token balance
-        if (balance >= tokenAmount) {
+        if (balance < tokenAmount) {
             revert UserHasNoTokenBalance(balance, tokenAmount, id);
         }
     }

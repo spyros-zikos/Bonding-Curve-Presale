@@ -201,7 +201,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
                 _sortTokens(s_weth, s_projectFromId[_id].token, amountRaisedAfterFees, getTotalTokensOwed(_id));
             // Deploy the pool
-            s_projectFromId[_id].pool = _deployPool(_id, token0, token1, amount0, amount1);
+            s_projectFromId[_id].pool = _deployPool(s_projectFromId[_id].poolType, token0, token1, amount0, amount1);
         }
         // Send remaining/all (depending on project being successful/failed) tokens to project creator
         uint256 remainingTokens = IERC20(s_projectFromId[_id].token).balanceOf(address(this));
@@ -215,7 +215,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         payable(s_feeCollector).transfer(address(this).balance);
     }
 
-    function getProject(uint256 _id) external view returns (Project memory) {
+    function getRPProject(uint256 _id) external view returns (Project memory) {
         return s_projectFromId[_id];
     }
 
@@ -225,7 +225,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         return getMaxPresaleTokenAmount(_id) * SOFTCAP_PERCENTAGE / DECIMALS;
     }
 
-    function getTotalTokensOwed(uint256 _id) public view returns (uint256) {
+    function getTotalTokensOwed(uint256 _id) public view virtual returns (uint256) {
         uint256 totalTokensOwed = 0;
         for (uint256 i = 0; i < s_projectFromId[_id].contributors.length; i++) {
             totalTokensOwed += s_tokensOwedToContributor[_id][s_projectFromId[_id].contributors[i]];
@@ -241,11 +241,11 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         return remainingTokens;
     }
 
-    function getMaxPresaleTokenAmount(uint256 _id) public view returns (uint256) {
+    function getMaxPresaleTokenAmount(uint256 _id) public view virtual returns (uint256) {
         return s_projectFromId[_id].initialTokenAmount / 2;
     }
 
-    function projectHasEnded(uint256 _id) public view returns (bool) {
+    function projectHasEnded(uint256 _id) public view virtual returns (bool) {
         return s_projectFromId[_id].endTime < block.timestamp || getRemainingTokens(_id) == 0;
     }
 
@@ -263,7 +263,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
 
     ////////////////// Internal //////////////////////////
 
-    function _updateProjectStatus(uint256 _id) internal {
+    function _updateProjectStatus(uint256 _id) internal virtual {
         if (projectSuccessful(_id)) {
             s_projectFromId[_id].status = ProjectStatus.Success;
         } else {
@@ -278,15 +278,18 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         Check.etherTransferSuccess(sent, _to, _value);
     }
 
-    function _deployPool(uint256 _id, address _token0, address _token1, uint256 _amount0, uint256 _amount1) internal returns(address pool) {
-        if (s_projectFromId[_id].poolType == PoolType.Uniswap) {
+    function _deployPool(PoolType poolType, address _token0, address _token1, uint256 _amount0, uint256 _amount1) internal returns(address pool) {
+        if (poolType == PoolType.Uniswap) {
             // Deploy uniswap pool and add the tokens
             pool = deployUniswapPool(_token0, _token1, _amount0, _amount1);
             emit UniswapPoolDeployed(pool);
+            // TODO: burn liquidity NFT
         } else {
             // Deploy balancer pool and add the tokens
             pool = deployConstantProductPool(_token0, _token1, _amount0, _amount1);
             emit BalancerPoolDeployed(pool);
+            // TODO: Burn BPT
+            // IERC20(pool).transfer(address(0), IERC20(pool).balanceOf(address(this)));
         }
     }
 

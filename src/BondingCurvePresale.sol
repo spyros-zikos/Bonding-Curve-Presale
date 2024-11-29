@@ -13,6 +13,7 @@ event UserJoinedProject(uint256 id, address contributor, uint256 tokenAmount, ui
 event UserLeftProject(uint256 id, address contributor, uint256 etherToGiveBack);
 event UserLeftPendingProject(uint256 id, address contributor, uint256 tokenAmount, uint256 priceAfterFailure);
 event LockedTokensClaimed(uint256 id, address contributor);
+event ProjectStatusUpdated(uint256 id, ProjectStatus status);
 
 struct Project {
     address token;
@@ -73,7 +74,7 @@ contract BondingCurvePresale is RegularPresale{
         PoolType _poolType,
         string memory _name,
 		string memory _symbol
-    ) external payable nonReentrant {  // probably does not need nonReentrant but just in case
+    ) external nonReentrant {  // probably does not need nonReentrant but just in case
         Check.startTimeIsInTheFuture(_startTime);
         Check.endTimeIsAfterStartTime(_startTime, _endTime);
         Check.initialTokenAmountIsEven(_initialTokenAmount);
@@ -120,7 +121,7 @@ contract BondingCurvePresale is RegularPresale{
             s_projectFromId[_id].contributors.push(msg.sender);
         }
         s_projectFromId[_id].raised += msg.value;
-        IERC20(s_projectFromId[_id].token).transferFrom(address(this), msg.sender, tokenAmount);
+        IERC20(s_projectFromId[_id].token).transfer(msg.sender, tokenAmount);
         emit UserJoinedProject(_id, msg.sender, tokenAmount, _calculatePrice(oldSupply));
     }
 
@@ -147,9 +148,9 @@ contract BondingCurvePresale is RegularPresale{
         Check.userHasTokenBalance(IERC20(s_projectFromId[_id].token).balanceOf(msg.sender), userTokenBalance, _id);
 
         // Calculate ether to give back
-        uint256 etherToGiveBack = userTokenBalance * DECIMALS / s_projectFromId[_id].priceAfterFailure;
-        // Get tokens from from user
-        IERC20(s_projectFromId[_id].token).transferFrom(msg.sender, address(this), userTokenBalance);
+        uint256 etherToGiveBack = userTokenBalance * s_projectFromId[_id].priceAfterFailure / DECIMALS;
+        // Burn user tokens
+        ERC20Ownable(s_projectFromId[_id].token).burn(msg.sender, userTokenBalance);
         // give back ether
         sendEther(payable(msg.sender), etherToGiveBack);
         emit UserLeftProject(_id, msg.sender, etherToGiveBack);
@@ -171,22 +172,23 @@ contract BondingCurvePresale is RegularPresale{
             // Reduce amount raised by 2*successfulEndFeeAmount so that successfulEndFeeAmount is sent 
             // to creator and successfulEndFeeAmount remains in the contract for the fee collector to collector
             uint256 amountRaisedAfterFees = s_projectFromId[_id].raised - (2 * successfulEndFeeAmount);
-            // Also subtract the locked tokens
-            amountRaisedAfterFees -= s_projectFromId[_id].raised * LOCK_PERCENTAGE / DECIMALS;
             // Wrap ETH into WETH
             IWETH9(s_weth).deposit{value: amountRaisedAfterFees}();
             // Sort the tokens
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
                 _sortTokens(s_weth, s_projectFromId[_id].token, amountRaisedAfterFees, getTotalTokensOwed(_id));
             // Deploy the pool
-            s_projectFromId[_id].pool = _deployPool(_id, token0, token1, amount0, amount1);
+            s_projectFromId[_id].pool = _deployPool(s_projectFromId[_id].poolType, token0, token1, amount0, amount1);
         } else {
             // Calculate price after failure
             s_projectFromId[_id].priceAfterFailure = s_projectFromId[_id].raised * DECIMALS / getTotalTokensOwed(_id);
         }
         // Burn remaining tokens
         uint256 remainingTokens = IERC20(s_projectFromId[_id].token).balanceOf(address(this));
-        IERC20(s_projectFromId[_id].token).transfer(address(0), remainingTokens);
+        ERC20Ownable(s_projectFromId[_id].token).burn(address(this), remainingTokens);
+        // Mint the locked tokens so that the project creator can claim them when lock period is over
+        uint256 lockAmount = getTotalTokensOwed(_id) * LOCK_PERCENTAGE / DECIMALS;
+        ERC20Ownable(s_projectFromId[_id].token).mint(address(this), lockAmount);
     }
 
     function claimLockedTokens(uint256 _id) external nonReentrant validId(_id) {
@@ -201,7 +203,23 @@ contract BondingCurvePresale is RegularPresale{
         sendEther(payable(msg.sender), lockedAmount);
     }
 
+    function getBCPProject(uint256 _id) external view returns (Project memory) {
+        return s_projectFromId[_id];
+    }
+
     ////////////////// Public //////////////////////////
+
+    function getTotalTokensOwed(uint256 _id) public view override returns (uint256) {
+        return s_projectFromId[_id].initialTokenAmount - IERC20(s_projectFromId[_id].token).balanceOf(address(this));
+    }
+
+    function getMaxPresaleTokenAmount(uint256 _id) public view override returns (uint256) {
+        return s_projectFromId[_id].initialTokenAmount / 2;
+    }
+
+    function projectHasEnded(uint256 _id) public view override returns (bool) {
+        return s_projectFromId[_id].endTime < block.timestamp || getRemainingTokens(_id) == 0;
+    }
 
     function contributorExists(uint256 _id, address _contributor) public view override returns(bool) {
         uint256 amount = IERC20(s_projectFromId[_id].token).balanceOf(_contributor);
@@ -210,8 +228,6 @@ contract BondingCurvePresale is RegularPresale{
         }
         return false;
     }
-
-    ////////////////// Private //////////////////////////
 
     function calculateBuyAmount(uint256 ethAmount, uint256 supply) public pure returns (uint256) {
         uint256 price = _calculatePrice(supply);
@@ -223,7 +239,18 @@ contract BondingCurvePresale is RegularPresale{
         return tokenAmount * price / DECIMALS;
     }
 
-    function _calculatePrice(uint256 supply) internal pure returns (uint256) {
+    function _calculatePrice(uint256 supply) public pure returns (uint256) {
         return PRICE_CHANGE_SLOPE * supply / DECIMALS + BASE_PRICE;
+    }
+
+    ////////////////// Internal //////////////////////////
+
+    function _updateProjectStatus(uint256 _id) internal override {
+        if (projectSuccessful(_id)) {
+            s_projectFromId[_id].status = ProjectStatus.Success;
+        } else {
+            s_projectFromId[_id].status = ProjectStatus.Failed;
+        }
+        emit ProjectStatusUpdated(_id, s_projectFromId[_id].status);
     }
 }

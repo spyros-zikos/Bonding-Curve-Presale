@@ -2,17 +2,16 @@
 pragma solidity ^0.8.24;
 
 import {Script} from "forge-std/Script.sol";
-import {RegularPresale} from "../src/RegularPresale.sol";
+import {BondingCurvePresale} from "../src/BondingCurvePresale.sol";
 import {HelperConfig} from "./HelperConfig.s.sol";
 
-contract DeployRegularPresale is Script {
-    function run() external returns(RegularPresale, HelperConfig) {
+contract DeployBondingCurvePresale is Script {
+    function run() external returns(BondingCurvePresale, HelperConfig) {
         HelperConfig helperConfig = new HelperConfig();
         HelperConfig.NetworkConfig memory config = helperConfig.getConfig();
 
         vm.startBroadcast(config.deployerKey);
-        RegularPresale presale = new RegularPresale(
-            config.creationFee,
+        BondingCurvePresale presale = new BondingCurvePresale(
             config.successfulEndFee,
             config.feeCollector,
             config.priceFeed,
