@@ -38,7 +38,10 @@ ifeq ($(findstring --network sepolia,$(ARGS)),--network sepolia)
 endif
 
 deployRegular:
-	@forge script script/DeployRegularPresale.s.sol:DeployRegularPresale $(NETWORK_ARGS)
+	@forge script script/DeployRegularPresale.s.sol:DeployRegularPresale --via-ir $(NETWORK_ARGS)
 
 deployERC20:
-	@forge script script/DeployERC20Ownable.s.sol:DeployERC20Ownable $(NETWORK_ARGS)
+	@forge script script/DeployERC20Ownable.s.sol:DeployERC20Ownable --via-ir $(NETWORK_ARGS)
+
+deployBondingCurve:
+	@forge script script/DeployBondingCurvePresale.s.sol:DeployBondingCurvePresale --optimize --optimizer-runs 50 --via-ir $(NETWORK_ARGS)

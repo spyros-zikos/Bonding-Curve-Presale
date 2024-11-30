@@ -14,7 +14,6 @@ contract DeployBondingCurvePresale is Script {
         BondingCurvePresale presale = new BondingCurvePresale(
             config.successfulEndFee,
             config.feeCollector,
-            config.priceFeed,
             config.uniFactory,
             config.nonfungiblePositionManager,
             config.weth,  // from uniswap

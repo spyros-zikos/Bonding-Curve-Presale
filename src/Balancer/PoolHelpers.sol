@@ -89,19 +89,6 @@ struct CustomPoolConfig {
     LiquidityManagement liquidityManagement;
 }
 
-struct WeightedPoolConfig {
-    string name;
-    string symbol;
-    TokenConfig[] tokenConfigs;
-    uint256[] normalizedWeights;
-    PoolRoleAccounts roleAccounts;
-    uint256 swapFeePercentage;
-    address poolHooksContract;
-    bool enableDonation;
-    bool disableUnbalancedLiquidity;
-    bytes32 salt;
-}
-
 struct InitializationConfig {
     IERC20[] tokens;
     uint256[] exactAmountsIn;

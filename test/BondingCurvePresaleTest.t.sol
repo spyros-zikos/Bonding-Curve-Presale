@@ -154,7 +154,7 @@ contract BondingCurvePresaleTest is Test {
         presale.joinProjectPresale{value: amount}(id);
         console.log("total tokens owed: ", presale.getTotalTokensOwed(id));
         console.log("investor token balance: ", token.balanceOf(investor));
-        console.log("price: ", presale._calculatePrice(presale.getTotalTokensOwed(id)));
+        console.log("price: ", presale.calculatePrice(presale.getTotalTokensOwed(id)));
     }
 
     function _investorLeavesPresale(uint256 time, address investor, uint256 amount, uint256 id, IERC20 token) private {
@@ -166,7 +166,7 @@ contract BondingCurvePresaleTest is Test {
         console.log("total tokens owed: ", presale.getTotalTokensOwed(id));
         console.log("investor token balance: ", token.balanceOf(investor));
         console.log("investor eth balance: ", investor.balance);
-        console.log("price: ", presale._calculatePrice(presale.getTotalTokensOwed(id)));
+        console.log("price: ", presale.calculatePrice(presale.getTotalTokensOwed(id)));
     }
 
     function _feeCollectorEndsPresale(uint256 time, uint256 id) private {

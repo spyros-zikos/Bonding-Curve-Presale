@@ -6,7 +6,6 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IUniswapV3Pool} from "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
 import {TransferHelper} from "@uniswap/v3-periphery/contracts/libraries/TransferHelper.sol";
 import {INonfungiblePositionManager} from "./INonfungiblePositionManager.sol";
-import {TickMath} from "./TickMath.sol";
 
 
 contract UniswapPoolDeployer {
@@ -21,7 +20,7 @@ contract UniswapPoolDeployer {
     }
 
     // Deploy Uniswap V3 Pool
-    function deployUniswapPool(address token0, address token1, uint256 token0Amount, uint256 token1Amount) internal returns(address pool) {
+    function deployUniswapPool(address token0, address token1, uint256 token0Amount, uint256 token1Amount) internal returns(address pool, uint256 tokenId, address nfpm) {
         // Create Uniswap v3 pool
         pool = IUniswapV3Factory(factory).createPool(token0, token1, swapFee);
         uint256 price = token1Amount * (2 ** 96) / token0Amount;
@@ -40,8 +39,8 @@ contract UniswapPoolDeployer {
                 token0: token0,
                 token1: token1,
                 fee: swapFee,
-                tickLower: TickMath.MIN_TICK,
-                tickUpper: TickMath.MAX_TICK,
+                tickLower: -887220,
+                tickUpper: 887220,
                 amount0Desired: token0Amount,
                 amount1Desired: token1Amount,
                 amount0Min: amount0Min,
@@ -49,6 +48,7 @@ contract UniswapPoolDeployer {
                 recipient: address(this),
                 deadline: block.timestamp
             });
-        INonfungiblePositionManager(nonfungiblePositionManager).mint(params);
+        (tokenId,,,) = INonfungiblePositionManager(nonfungiblePositionManager).mint(params);
+        nfpm = nonfungiblePositionManager;
     }
 }

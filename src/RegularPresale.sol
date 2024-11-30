@@ -2,13 +2,11 @@
 pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {PriceConverter} from "./lib/PriceConverter.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {IWETH9} from "./Uniswap/IWETH9.sol";
-import {BalancerPoolDeployer} from "./Balancer/BalancerPoolDeployer.sol";
-import {UniswapPoolDeployer} from "./Uniswap/UniswapPoolDeployer.sol";
+import {PoolDeployer, PoolType} from "./utils/PoolDeployer.sol";
+import {Presale, ProjectStatus} from "./utils/Presale.sol";
 import {Check} from "./lib/Check.sol";
 
 
@@ -22,22 +20,7 @@ event ProjectCreated(
 );
 event UserJoinedProject(uint256 id, address contributor, uint256 tokenAmount);
 event UserLeftProject(uint256 id, address contributor, uint256 etherToGiveBack);
-event UniswapPoolDeployed(address pool);
-event BalancerPoolDeployed(address pool);
 event ProjectStatusUpdated(uint256 id, ProjectStatus status);
-
-
-enum ProjectStatus {
-    Pending,
-    Success,
-    Failed
-}
-
-
-enum PoolType {
-    Uniswap,
-    Balancer
-}
 
 
 struct Project {
@@ -55,21 +38,13 @@ struct Project {
 }
 
 
-contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, UniswapPoolDeployer {
-    uint256 internal constant DECIMALS = 1e18;
-    uint24 internal constant UNISWAP_SWAP_FEE = 3000;  // 0.3%, don't change this
-    uint256 internal constant BALANCER_SWAP_FEE = 0.3e16;  // 0.3%
-    uint256 internal constant SOFTCAP_PERCENTAGE = 30e16;  // 30%
-    uint256 internal s_creationFee;
-    uint256 internal s_successfulEndFee; // percentage, e.g. 5e16 = 5% - the presale creator an the fee collector get amount raised * s_successfulEndFee / DECIMALS
-    address internal s_feeCollector;
-    AggregatorV3Interface internal s_priceFeed;
-    uint256 internal s_lastProjectId; // starts from 1
+contract RegularPresale is Presale, PoolDeployer {
+    uint256 private s_creationFee;
+    AggregatorV3Interface private s_priceFeed;
     mapping (uint256 id => Project project) private s_projectFromId;
     mapping (uint256 id => mapping(address contributor => uint256 tokenAmount)) private s_tokensOwedToContributor;
-    address internal s_weth;
 
-    modifier validId(uint256 _id) virtual {
+    modifier validId(uint256 _id) {
         Check.validId(_id, s_lastProjectId);
         _;
     }
@@ -86,15 +61,17 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         address _balancerRouter,
         address _balancerPermit2
     ) 
-        Ownable(msg.sender)
-        BalancerPoolDeployer(_balancerVault, _balancerRouter, _balancerPermit2, BALANCER_SWAP_FEE)
-        UniswapPoolDeployer(_uniFactory, _nonfungiblePositionManager, UNISWAP_SWAP_FEE)
+        Presale(_feeCollector, _weth, _successfulEndFee)
+        PoolDeployer(
+            _uniFactory,
+            _nonfungiblePositionManager,
+            _balancerVault,
+            _balancerRouter,
+            _balancerPermit2
+        )
     {
         s_creationFee = _creationFee;
-        s_successfulEndFee = _successfulEndFee;
-        s_feeCollector = _feeCollector;
         s_priceFeed = AggregatorV3Interface(_priceFeed);
-        s_weth = _weth;
     }
 
     // Function to receive Ether. msg.data must be empty
@@ -138,7 +115,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         emit ProjectCreated(s_lastProjectId, _token, _tokenPrice, _initialTokenAmount, _startTime, _endTime);
     }
 
-    function joinProjectPresale(uint256 _id) external payable virtual nonReentrant validId(_id) {
+    function joinProjectPresale(uint256 _id) external payable nonReentrant validId(_id) {
         Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasStarted(s_projectFromId[_id].startTime, _id);
         Check.projectHasNotEnded(projectHasEnded(_id), _id);
@@ -159,7 +136,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         emit UserJoinedProject(_id, msg.sender, tokenAmount);
     }
 
-    function leaveUnsuccessfulProjectPresale(uint256 _id) external virtual nonReentrant validId(_id) {
+    function leaveUnsuccessfulProjectPresale(uint256 _id) external nonReentrant validId(_id) {
         Check.projectHasFailed(s_projectFromId[_id].status != ProjectStatus.Failed, _id);
         Check.userHasContributed(contributorExists(_id, msg.sender), _id, msg.sender);
 
@@ -173,7 +150,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
     }
 
     // Should be called when presale has pendinig status but has either succeded or time ended
-    function endPresale(uint256 _id) external virtual nonReentrant validId(_id) {
+    function endPresale(uint256 _id) external nonReentrant validId(_id) {
         Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasEnded(projectHasEnded(_id), _id);
 
@@ -210,13 +187,12 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         }
     }
 
-    function withdrawFunds() external onlyOwner {
-        require(address(this).balance > 0, "No funds to withdraw");
-        payable(s_feeCollector).transfer(address(this).balance);
-    }
-
     function getRPProject(uint256 _id) external view returns (Project memory) {
         return s_projectFromId[_id];
+    }
+
+    function getTokensOwedToContributor(uint256 _id, address _contributor) external view returns (uint256) {
+        return s_tokensOwedToContributor[_id][_contributor];
     }
 
     ////////////////// Public //////////////////////////
@@ -225,7 +201,7 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         return getMaxPresaleTokenAmount(_id) * SOFTCAP_PERCENTAGE / DECIMALS;
     }
 
-    function getTotalTokensOwed(uint256 _id) public view virtual returns (uint256) {
+    function getTotalTokensOwed(uint256 _id) public view returns (uint256) {
         uint256 totalTokensOwed = 0;
         for (uint256 i = 0; i < s_projectFromId[_id].contributors.length; i++) {
             totalTokensOwed += s_tokensOwedToContributor[_id][s_projectFromId[_id].contributors[i]];
@@ -241,29 +217,9 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         return remainingTokens;
     }
 
-    function getMaxPresaleTokenAmount(uint256 _id) public view virtual returns (uint256) {
-        return s_projectFromId[_id].initialTokenAmount / 2;
-    }
+    ////////////////// Private //////////////////////////
 
-    function projectHasEnded(uint256 _id) public view virtual returns (bool) {
-        return s_projectFromId[_id].endTime < block.timestamp || getRemainingTokens(_id) == 0;
-    }
-
-    function projectSuccessful(uint256 _id) public view returns (bool) {
-        return getTotalTokensOwed(_id) >= getSoftCap(_id);
-    }
-
-    function contributorExists(uint256 _id, address _contributor) public view virtual returns(bool) {
-        uint256 amount = s_tokensOwedToContributor[_id][_contributor];
-        if (amount > 0) {
-            return true;
-        }
-        return false;
-    }
-
-    ////////////////// Internal //////////////////////////
-
-    function _updateProjectStatus(uint256 _id) internal virtual {
+    function _updateProjectStatus(uint256 _id) private {
         if (projectSuccessful(_id)) {
             s_projectFromId[_id].status = ProjectStatus.Success;
         } else {
@@ -272,34 +228,24 @@ contract RegularPresale is Ownable, ReentrancyGuard, BalancerPoolDeployer, Unisw
         emit ProjectStatusUpdated(_id, s_projectFromId[_id].status);
     }
 
-    function sendEther(address payable _to, uint256 _value) internal {
-        // Call returns a boolean value indicating success or failure.
-        (bool sent,) = _to.call{value: _value}("");
-        Check.etherTransferSuccess(sent, _to, _value);
+    function getMaxPresaleTokenAmount(uint256 _id) private view returns (uint256) {
+        return s_projectFromId[_id].initialTokenAmount / 2;
     }
 
-    function _deployPool(PoolType poolType, address _token0, address _token1, uint256 _amount0, uint256 _amount1) internal returns(address pool) {
-        if (poolType == PoolType.Uniswap) {
-            // Deploy uniswap pool and add the tokens
-            pool = deployUniswapPool(_token0, _token1, _amount0, _amount1);
-            emit UniswapPoolDeployed(pool);
-            // TODO: burn liquidity NFT
-        } else {
-            // Deploy balancer pool and add the tokens
-            pool = deployConstantProductPool(_token0, _token1, _amount0, _amount1);
-            emit BalancerPoolDeployed(pool);
-            // TODO: Burn BPT
-            // IERC20(pool).transfer(address(0), IERC20(pool).balanceOf(address(this)));
+    function projectHasEnded(uint256 _id) private view returns (bool) {
+        return s_projectFromId[_id].endTime < block.timestamp || getRemainingTokens(_id) == 0;
+    }
+
+    function projectSuccessful(uint256 _id) private view returns (bool) {
+        return getTotalTokensOwed(_id) >= getSoftCap(_id);
+    }
+
+    function contributorExists(uint256 _id, address _contributor) private view returns(bool) {
+        uint256 amount = s_tokensOwedToContributor[_id][_contributor];
+        if (amount > 0) {
+            return true;
         }
-    }
-
-    function _sortTokens(address _token0, address _token1, uint256 _tokenAmount0, uint256 _tokenAmount1) 
-        internal pure returns (address token0, address token1, uint256 tokenAmount0, uint256 tokenAmount1)
-    {
-        (token0, token1, tokenAmount0, tokenAmount1) = 
-            _token0 < _token1
-            ? (_token0, _token1, _tokenAmount0, _tokenAmount1)
-            : (_token1, _token0, _tokenAmount1, _tokenAmount0);
+        return false;
     }
 
     // Future: check fees in range 0-100, improve for loops gaswise
