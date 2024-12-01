@@ -102,7 +102,7 @@ contract BondingCurvePresaleTest is Test {
             INITIAL_SUPPLY, // initial supply/amount
             START_TIME,
             START_TIME + 1000,
-            PoolType.Uniswap, 
+            PoolType.Balancer, 
             "token name",
             "token symbol"
         );
@@ -124,6 +124,8 @@ contract BondingCurvePresaleTest is Test {
         _investorLeavesPresale(START_TIME + 101, investor1, token.balanceOf(investor1), id, token);
         // ##################################################
 
+        // vm.prank(projectCreator);
+        // IERC20(presale.getBCPProject(id).token).approve(address(config.CPFactory), type(uint256).max);
         _feeCollectorEndsPresale(START_TIME + 1001, id);
 
         // Check if project succeded

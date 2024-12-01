@@ -43,13 +43,13 @@ contract BondingCurvePresaleUtils is Presale {
         _;
     }
 
-    function createPresaleChecks(uint256 _startTime, uint256 _endTime, uint256 _initialTokenAmount) internal {
+    function createPresaleChecks(uint256 _startTime, uint256 _endTime, uint256 _initialTokenAmount) internal view {
         Check.startTimeIsInTheFuture(_startTime);
         Check.endTimeIsAfterStartTime(_startTime, _endTime);
         Check.initialTokenAmountIsEven(_initialTokenAmount);
     }
 
-    function joinProjectPresaleChecks(uint256 _id) internal {
+    function joinProjectPresaleChecks(uint256 _id) internal view {
         Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasStarted(s_projectFromId[_id].startTime, _id);
         Check.projectHasNotEnded(projectHasEnded(_id), _id);
@@ -57,7 +57,7 @@ contract BondingCurvePresaleUtils is Presale {
         Check.msgValueIsGreaterThanZero();
     }
 
-    function leaveOngoingProjectPresaleChecks(uint256 _id, uint256 _tokenAmount) internal {
+    function leaveOngoingProjectPresaleChecks(uint256 _id, uint256 _tokenAmount) internal view {
         Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasStarted(s_projectFromId[_id].startTime, _id);
         Check.projectHasNotEnded(projectHasEnded(_id), _id);
@@ -65,7 +65,7 @@ contract BondingCurvePresaleUtils is Presale {
         Check.userHasTokenBalance(IERC20(s_projectFromId[_id].token).balanceOf(msg.sender), _tokenAmount, _id);
     }
 
-    function leaveUnsuccessfulProjectPresaleChecks(uint256 _id) internal returns(uint256) {
+    function leaveUnsuccessfulProjectPresaleChecks(uint256 _id) internal view returns(uint256) {
         Check.projectHasFailed(s_projectFromId[_id].status != ProjectStatus.Failed, _id);
         Check.userHasContributed(contributorExists(_id, msg.sender), _id, msg.sender);
         uint256 userTokenBalance = IERC20(s_projectFromId[_id].token).balanceOf(msg.sender); 
@@ -73,12 +73,12 @@ contract BondingCurvePresaleUtils is Presale {
         return userTokenBalance;
     }
 
-    function endPresaleChecks(uint256 _id) internal {
+    function endPresaleChecks(uint256 _id) internal view {
         Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
         Check.projectHasEnded(projectHasEnded(_id), _id);
     }
 
-    function claimLockedTokensChecks(uint256 _id) internal {
+    function claimLockedTokensChecks(uint256 _id) internal view {
         Check.msgSenderIsProjectCreator(s_projectFromId[_id].creator == msg.sender);
         Check.projectIsSuccessful(s_projectFromId[_id].status == ProjectStatus.Success, _id);
         Check.lockPeriodIsOver(s_projectFromId[_id].startTime + LOCK_PERIOD, _id);

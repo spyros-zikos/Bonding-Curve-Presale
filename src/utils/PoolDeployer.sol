@@ -28,12 +28,14 @@ contract PoolDeployer is BalancerPoolDeployer, UniswapPoolDeployer {
         // Balancer
         address _vault,
         address _router,
+        address _CPFactory,
         address _permit2
         )
         UniswapPoolDeployer(_factory, _nonfungiblePositionManager, UNISWAP_SWAP_FEE)
-        BalancerPoolDeployer(_vault, _router, _permit2, BALANCER_SWAP_FEE) 
+        BalancerPoolDeployer(_vault, _router, _CPFactory, _permit2, BALANCER_SWAP_FEE) 
     {}
 
+    // Needs sorted tokens and amounts by token ascending order, use _sortTokens function
     function _deployPool(PoolType poolType, address _token0, address _token1, uint256 _amount0, uint256 _amount1) internal returns(address pool) {
         if (poolType == PoolType.Uniswap) {
             // Deploy uniswap pool and add the tokens
@@ -43,14 +45,13 @@ contract PoolDeployer is BalancerPoolDeployer, UniswapPoolDeployer {
             emit UniswapPoolDeployed(pool);
             // Burn liquidity NFT
             IERC721(nfpm).transferFrom(address(this), address(0xdEaD), tokenId);
-        } 
-        // else {
-        //     // Deploy balancer pool and add the tokens
-        //     pool = deployConstantProductPool(_token0, _token1, _amount0, _amount1);
-        //     emit BalancerPoolDeployed(pool);
-        //     // Burn BPT
-        //     IERC20(pool).transfer(address(0xdEaD), IERC20(pool).balanceOf(address(this)));
-        // }
+        } else {
+            // Deploy balancer pool and add the tokens
+            pool = deployConstantProductPool(_token0, _token1, _amount0, _amount1);
+            // emit BalancerPoolDeployed(pool);
+            // // Burn BPT
+            // IERC20(pool).transfer(address(0xdEaD), IERC20(pool).balanceOf(address(this)));
+        }
     }
 
     function _sortTokens(address _token0, address _token1, uint256 _tokenAmount0, uint256 _tokenAmount1) 

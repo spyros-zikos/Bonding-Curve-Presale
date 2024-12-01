@@ -59,6 +59,7 @@ contract RegularPresale is Presale, PoolDeployer {
         address _weth,  // from uniswap
         address _balancerVault,
         address _balancerRouter,
+        address _CPFactory,
         address _balancerPermit2
     ) 
         Presale(_feeCollector, _weth, _successfulEndFee)
@@ -67,6 +68,7 @@ contract RegularPresale is Presale, PoolDeployer {
             _nonfungiblePositionManager,
             _balancerVault,
             _balancerRouter,
+            _CPFactory,
             _balancerPermit2
         )
     {

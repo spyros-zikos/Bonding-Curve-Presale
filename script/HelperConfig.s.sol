@@ -38,6 +38,7 @@ contract HelperConfig is CodeConstants, Script {
         address balancerVault;
         address balancerRouter;
         address balancerPermit2;
+        address CPFactory;
         uint256 deployerKey;
     }
 
@@ -86,6 +87,7 @@ contract HelperConfig is CodeConstants, Script {
             balancerVault: 0x0EF1c156a7986F394d90eD1bEeA6483Cc435F542,
             balancerRouter: 0xB12FcB422aAe6720f882E22C340964a7723f2387,
             balancerPermit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3,
+            CPFactory: 0xD328B584235AB1623894F4B96B09738446b7943C,
             deployerKey: vm.envUint("PRIVATE_KEY")
         });
     }
@@ -103,6 +105,7 @@ contract HelperConfig is CodeConstants, Script {
             balancerVault: 0x0EF1c156a7986F394d90eD1bEeA6483Cc435F542,
             balancerRouter: 0xB12FcB422aAe6720f882E22C340964a7723f2387,
             balancerPermit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3,
+            CPFactory: 0x000000000022D473030F116dDEE9F6B43aC78BA3,
             deployerKey: vm.envUint("PRIVATE_KEY")
         });
     }

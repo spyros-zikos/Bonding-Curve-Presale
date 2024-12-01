@@ -21,6 +21,7 @@ contract DeployRegularPresale is Script {
             config.weth,  // from uniswap
             config.balancerVault,
             config.balancerRouter,
+            config.CPFactory,
             config.balancerPermit2
         );
         vm.stopBroadcast();

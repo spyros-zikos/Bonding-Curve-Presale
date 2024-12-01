@@ -27,6 +27,7 @@ contract BondingCurvePresale is PoolDeployer, BondingCurvePresaleUtils {
         address _weth,
         address _balancerVault,
         address _balancerRouter,
+        address _CPFactory,
         address _balancerPermit2
     ) 
         BondingCurvePresaleUtils(_feeCollector, _weth, _successfulEndFee)
@@ -35,6 +36,7 @@ contract BondingCurvePresale is PoolDeployer, BondingCurvePresaleUtils {
             _nonfungiblePositionManager,
             _balancerVault,
             _balancerRouter,
+            _CPFactory,
             _balancerPermit2
         )
     {}
@@ -130,6 +132,7 @@ contract BondingCurvePresale is PoolDeployer, BondingCurvePresaleUtils {
             // Reduce amount raised by project creator fee and fee collector fee
             uint256 amountRaisedAfterFees = s_projectFromId[_id].raised - (2 * successfulEndFeeAmount);
             // Wrap ETH into WETH
+            // IWETH9(s_weth).approve()
             IWETH9(s_weth).deposit{value: amountRaisedAfterFees}();
             // Sort the tokens
             (address token0, address token1, uint256 amount0, uint256 amount1) = 

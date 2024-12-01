@@ -22,4 +22,10 @@ contract ERC20Ownable is ERC20, Ownable {
 		_burn(from, amount);
 		emit TokensBurned(from, amount);
 	}
+
+	// function approve(address spender, uint256 value) public override returns (bool) {
+    //     address owner = _msgSender();
+    //     _approve(owner, spender, value);
+    //     return true;
+    // }
 }
