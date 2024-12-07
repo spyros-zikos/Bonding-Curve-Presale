@@ -14,10 +14,12 @@ error ProjectIsNotPending(uint256 id);
 error ProjectHasNotStarted(uint256 id);
 error NoMoreTokensToGive(uint256 id);
 error ProjectHasEnded(uint256 id);
+error TokenAmountLessThanExpected(uint256 tokenAmount, uint256 expectedTokenAmount);
 
 error ProjectHasNotFailed(uint256 id);
 error UserHasNotContributed(uint256 id, address contributor);
 error ProjectHasNotEnded(uint256 id);
+error EthAmountLessThanExpected(uint256 ethAmount, uint256 expectedEthAmount);
 
 error EtherTransferFailed(address to, uint256 value);
 error MsgValueIsZero();
@@ -179,6 +181,20 @@ library Check {
         // Check if creator has not claimed locked tokens
         if (hasClaimed) {
             revert CreatorHasClaimedLockedTokens(id);
+        }
+    }
+
+    function tokenAmountIsNotLessThanExpected(uint256 tokenAmount, uint256 expectedTokenAmount) internal pure {
+        // Check if token amount is not less than expected
+        if (tokenAmount < expectedTokenAmount) {
+            revert TokenAmountLessThanExpected(expectedTokenAmount, tokenAmount);
+        }
+    }
+
+    function ethAmountIsNotLessThanExpected(uint256 ethAmount, uint256 expectedEthAmount) internal pure {
+        // Check if eth amount is not less than expected
+        if (ethAmount < expectedEthAmount) {
+            revert EthAmountLessThanExpected(expectedEthAmount, ethAmount);
         }
     }
 }

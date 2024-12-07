@@ -10,39 +10,37 @@ import {Presale, ProjectStatus} from "./utils/Presale.sol";
 import {Check} from "./lib/Check.sol";
 
 
-event ProjectCreated(
-    uint256 lastProjectId,
-    address token,
-    uint256 tokenPrice,
-    uint256 initialTokenAmount,
-    uint256 startTime,
-    uint256 endTime
-);
-event UserJoinedProject(uint256 id, address contributor, uint256 tokenAmount);
-event UserLeftProject(uint256 id, address contributor, uint256 etherToGiveBack);
-event ProjectStatusUpdated(uint256 id, ProjectStatus status);
-
-
-struct Project {
-    address token;
-    uint256 price; // in USD, 18 decimals
-    uint256 initialTokenAmount;
-    uint256 raised; // in ETH
-    uint256 startTime;
-    uint256 endTime;
-    address creator;
-    address[] contributors;
-    ProjectStatus status;  // gets changed when endPresale is called
-    PoolType poolType;
-    address pool;
-}
-
-
 contract RegularPresale is Presale, PoolDeployer {
+    struct Project {
+        address token;
+        uint256 price; // in USD, 18 decimals
+        uint256 initialTokenAmount;
+        uint256 raised; // in ETH
+        uint256 startTime;
+        uint256 endTime;
+        address creator;
+        address[] contributors;
+        ProjectStatus status;  // gets changed when endPresale is called
+        PoolType poolType;
+        address pool;
+    }
+
     uint256 private s_creationFee;
     AggregatorV3Interface private s_priceFeed;
     mapping (uint256 id => Project project) private s_projectFromId;
     mapping (uint256 id => mapping(address contributor => uint256 tokenAmount)) private s_tokensOwedToContributor;
+
+    event ProjectCreated(
+        uint256 lastProjectId,
+        address token,
+        uint256 tokenPrice,
+        uint256 initialTokenAmount,
+        uint256 startTime,
+        uint256 endTime
+    );
+    event UserJoinedProject(uint256 id, address contributor, uint256 tokenAmount);
+    event UserLeftProject(uint256 id, address contributor, uint256 etherToGiveBack);
+    event ProjectStatusUpdated(uint256 id, ProjectStatus status);
 
     modifier validId(uint256 _id) {
         Check.validId(_id, s_lastProjectId);
@@ -161,7 +159,8 @@ contract RegularPresale is Presale, PoolDeployer {
         
         if (projectSuccessful(_id)) {
             // Distribute tokens to contributors
-            for (uint256 i = 0; i < s_projectFromId[_id].contributors.length; i++) {
+            uint256 contributorsLength = s_projectFromId[_id].contributors.length;
+            for (uint256 i = 0; i < contributorsLength; i++) {
                 address contributor = s_projectFromId[_id].contributors[i];
                 uint256 tokensToGive = s_tokensOwedToContributor[_id][contributor];
                 IERC20(s_projectFromId[_id].token).transfer(contributor, tokensToGive);
@@ -205,7 +204,8 @@ contract RegularPresale is Presale, PoolDeployer {
 
     function getTotalTokensOwed(uint256 _id) public view returns (uint256) {
         uint256 totalTokensOwed = 0;
-        for (uint256 i = 0; i < s_projectFromId[_id].contributors.length; i++) {
+        uint256 contributorsLength = s_projectFromId[_id].contributors.length;
+        for (uint256 i = 0; i < contributorsLength; i++) {
             totalTokensOwed += s_tokensOwedToContributor[_id][s_projectFromId[_id].contributors[i]];
         }
         return totalTokensOwed;
@@ -219,6 +219,26 @@ contract RegularPresale is Presale, PoolDeployer {
         return remainingTokens;
     }
 
+    function getMaxPresaleTokenAmount(uint256 _id) public view returns (uint256) {
+        return s_projectFromId[_id].initialTokenAmount / 2;
+    }
+
+    function projectHasEnded(uint256 _id) public view returns (bool) {
+        return s_projectFromId[_id].endTime < block.timestamp || getRemainingTokens(_id) == 0;
+    }
+
+    function projectSuccessful(uint256 _id) public view returns (bool) {
+        return getTotalTokensOwed(_id) >= getSoftCap(_id);
+    }
+
+    function contributorExists(uint256 _id, address _contributor) public view returns(bool) {
+        uint256 amount = s_tokensOwedToContributor[_id][_contributor];
+        if (amount > 0) {
+            return true;
+        }
+        return false;
+    }
+
     ////////////////// Private //////////////////////////
 
     function _updateProjectStatus(uint256 _id) private {
@@ -229,26 +249,4 @@ contract RegularPresale is Presale, PoolDeployer {
         }
         emit ProjectStatusUpdated(_id, s_projectFromId[_id].status);
     }
-
-    function getMaxPresaleTokenAmount(uint256 _id) private view returns (uint256) {
-        return s_projectFromId[_id].initialTokenAmount / 2;
-    }
-
-    function projectHasEnded(uint256 _id) private view returns (bool) {
-        return s_projectFromId[_id].endTime < block.timestamp || getRemainingTokens(_id) == 0;
-    }
-
-    function projectSuccessful(uint256 _id) private view returns (bool) {
-        return getTotalTokensOwed(_id) >= getSoftCap(_id);
-    }
-
-    function contributorExists(uint256 _id, address _contributor) private view returns(bool) {
-        uint256 amount = s_tokensOwedToContributor[_id][_contributor];
-        if (amount > 0) {
-            return true;
-        }
-        return false;
-    }
-
-    // Future: check fees in range 0-100, improve for loops gaswise
 }

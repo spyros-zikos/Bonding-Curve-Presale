@@ -48,9 +48,9 @@ contract PoolDeployer is BalancerPoolDeployer, UniswapPoolDeployer {
         } else {
             // Deploy balancer pool and add the tokens
             pool = deployConstantProductPool(_token0, _token1, _amount0, _amount1);
-            // emit BalancerPoolDeployed(pool);
-            // // Burn BPT
-            // IERC20(pool).transfer(address(0xdEaD), IERC20(pool).balanceOf(address(this)));
+            emit BalancerPoolDeployed(pool);
+            // Burn BPT
+            IERC20(pool).transfer(address(0xdEaD), IERC20(pool).balanceOf(address(this)));
         }
     }
 

@@ -5,17 +5,20 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Check} from "../lib/Check.sol";
 
+
 enum ProjectStatus {
     Pending,
     Success,
     Failed
 }
 
+
 contract Presale is Ownable, ReentrancyGuard {
     uint256 internal constant DECIMALS = 1e18;
     uint256 internal constant SOFTCAP_PERCENTAGE = 30e16;  // 30%
     address internal s_feeCollector;
-    // percentage, e.g. 5e16 = 5% - the presale creator an the fee collector get amount raised * s_successfulEndFee / DECIMALS
+    // s_successfulEndFee is a percentage, e.g. 5e16 = 5%.
+    // The presale creator and the fee collector get amount raised * s_successfulEndFee / DECIMALS
     uint256 internal s_successfulEndFee;
     address internal s_weth;
     uint256 internal s_lastProjectId; // starts from 1

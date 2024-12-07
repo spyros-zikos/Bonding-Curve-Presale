@@ -21,9 +21,9 @@ install :; forge install openzeppelin/openzeppelin-contracts@v5.1.0 --no-commit 
 # Update Dependencies
 update:; forge update
 
-build:; forge build
+build:; forge build --via-ir
 
-test :; forge test 
+test :; @forge test --fork-url $(SEPOLIA_RPC_URL) --via-ir
 
 snapshot :; forge snapshot
 

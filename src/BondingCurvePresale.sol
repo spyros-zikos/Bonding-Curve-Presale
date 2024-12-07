@@ -6,157 +6,281 @@ import {IWETH9} from "./Uniswap/IWETH9.sol";
 import {ERC20Ownable} from "./ERC20Ownable.sol";
 import {PoolDeployer, PoolType} from "./utils/PoolDeployer.sol";
 import {Presale, ProjectStatus} from "./utils/Presale.sol";
-import {BondingCurvePresaleUtils, Project} from "./utils/BondingCurvePresaleUtils.sol";
+import {Check} from "./lib/Check.sol";
 
 
-event ProjectCreated(uint256 id, address token, uint256 initialTokenAmount, uint256 startTime, uint256 endTime);
-event UserJoinedProject(uint256 id, address contributor, uint256 tokenAmount, uint256 tokenPrice);
-event UserLeftProject(uint256 id, address contributor, uint256 etherToGiveBack);
-event UserLeftPendingProject(uint256 id, address contributor, uint256 tokenAmount, uint256 priceAfterFailure);
-event LockedTokensClaimed(uint256 id, address contributor);
+contract BondingCurvePresale is PoolDeployer, Presale {
+    struct Project {
+        address token;
+        uint256 initialTokenAmount;
+        uint256 raised; // in ETH
+        uint256 startTime;
+        uint256 endTime;
+        address creator;
+        address[] contributors;
+        ProjectStatus status;  // gets changed when endPresale is called
+        PoolType poolType;
+        address pool;
+        uint256 priceAfterFailure;
+        bool creatorClaimedLockedTokens;
+    }
 
+    uint256 constant private PRICE_CHANGE_SLOPE = 0.01e18;  // slope
+    uint256 constant private BASE_PRICE = 0.01e18;  // base price
+    uint256 constant private LOCK_PERIOD = 6 * 30 * 24 * 60 * 60; // 6 months
+    uint256 constant private LOCK_PERCENTAGE = 10e16; // 10%
+    mapping (uint256 id => Project project) private s_projectFromId;
 
-contract BondingCurvePresale is PoolDeployer, BondingCurvePresaleUtils {
-    
+    event ProjectCreated(uint256 id, address token, uint256 initialTokenAmount, uint256 startTime, uint256 endTime);
+    event UserJoinedProject(uint256 id, address contributor, uint256 tokenAmount, uint256 tokenPrice);
+    event UserLeftProject(uint256 id, address contributor, uint256 etherToGiveBack);
+    event UserLeftPendingProject(uint256 id, address contributor, uint256 tokenAmount, uint256 priceAfterFailure);
+    event LockedTokensClaimed(uint256 id, address contributor);
+    event ProjectStatusUpdated(uint256 id, ProjectStatus status);
     
     constructor(
-        uint256 _successfulEndFee,
-        address _feeCollector,
-        address _uniFactory,
-        address _nonfungiblePositionManager,
-        address _weth,
-        address _balancerVault,
-        address _balancerRouter,
-        address _CPFactory,
-        address _balancerPermit2
+        uint256 successfulEndFee,
+        address feeCollector,
+        address uniFactory,
+        address nonfungiblePositionManager,
+        address weth,
+        address balancerVault,
+        address balancerRouter,
+        address CPFactory,
+        address balancerPermit2
     ) 
-        BondingCurvePresaleUtils(_feeCollector, _weth, _successfulEndFee)
+        Presale(feeCollector, weth, successfulEndFee) 
         PoolDeployer(
-            _uniFactory,
-            _nonfungiblePositionManager,
-            _balancerVault,
-            _balancerRouter,
-            _CPFactory,
-            _balancerPermit2
+            uniFactory,
+            nonfungiblePositionManager,
+            balancerVault,
+            balancerRouter,
+            CPFactory,
+            balancerPermit2
         )
     {}
 
+    modifier validId(uint256 id) {
+        Check.validId(id, s_lastProjectId);
+        _;
+    }
+
     function createPresale(
-        uint256 _initialTokenAmount, // must be even number so that half goes to presale and half to pool
-        uint256 _startTime,
-        uint256 _endTime,
-        PoolType _poolType,
-        string memory _name,
-		string memory _symbol
+        uint256 initialTokenAmount, // must be even number so that half goes to presale and half to pool
+        uint256 startTime,
+        uint256 endTime,
+        PoolType poolType,
+        string memory name,
+		string memory symbol
     ) external nonReentrant {  // probably does not need nonReentrant but just in case
-        createPresaleChecks(_startTime, _endTime, _initialTokenAmount);
+        Check.startTimeIsInTheFuture(startTime);
+        Check.endTimeIsAfterStartTime(startTime, endTime);
+        Check.initialTokenAmountIsEven(initialTokenAmount);
 
         // Create token supply
-        ERC20Ownable token = new ERC20Ownable(_name, _symbol);
-        token.mint(address(this), _initialTokenAmount);
+        ERC20Ownable token = new ERC20Ownable(name, symbol);
+        token.mint(address(this), initialTokenAmount);
         // Create project
         s_lastProjectId += 1;
-        address[] memory _contributors;
+        address[] memory contributors;
         s_projectFromId[s_lastProjectId] = Project({
             token: address(token),
-            initialTokenAmount: _initialTokenAmount,
+            initialTokenAmount: initialTokenAmount,
             raised: 0,
-            startTime: _startTime,
-            endTime: _endTime,
+            startTime: startTime,
+            endTime: endTime,
             creator: msg.sender,
-            contributors: _contributors,
+            contributors: contributors,
             status: ProjectStatus.Pending,
-            poolType: _poolType,
+            poolType: poolType,
             pool: address(0),
             priceAfterFailure: 0,
             creatorClaimedLockedTokens: false
         });
-        emit ProjectCreated(s_lastProjectId, address(token), _initialTokenAmount, _startTime, _endTime);
+        emit ProjectCreated(s_lastProjectId, address(token), initialTokenAmount, startTime, endTime);
     }
     
-    function joinProjectPresale(uint256 _id) external payable nonReentrant validId(_id) {
-        joinProjectPresaleChecks(_id);
+    function joinProjectPresale(uint256 id, uint256 expectedTokenAmount) external payable nonReentrant validId(id) {
+        Check.projectIsPending(s_projectFromId[id].status == ProjectStatus.Pending, id);
+        Check.projectHasStarted(s_projectFromId[id].startTime, id);
+        Check.projectHasNotEnded(projectHasEnded(id), id);
+        Check.thereAreRemainingTokens(getRemainingTokens(id), id);
+        Check.msgValueIsGreaterThanZero();
 
-        uint256 oldSupply = s_projectFromId[_id].initialTokenAmount - IERC20(s_projectFromId[_id].token).balanceOf(address(this));
+        uint256 oldSupply = s_projectFromId[id].initialTokenAmount - IERC20(s_projectFromId[id].token).balanceOf(address(this));
         uint256 tokenAmount = calculateBuyAmount(msg.value, oldSupply);
+        Check.tokenAmountIsNotLessThanExpected(tokenAmount, expectedTokenAmount);
+        
         // Check if contributions surpass max presale token amount, then give only what is left
-        if (getRemainingTokens(_id) < tokenAmount) {
-            tokenAmount = getRemainingTokens(_id);
+        if (getRemainingTokens(id) < tokenAmount) {
+            tokenAmount = getRemainingTokens(id);
         }
 
         // Add contributor to project
-        if (!contributorExists(_id, msg.sender)) {
-            s_projectFromId[_id].contributors.push(msg.sender);
+        if (!contributorExists(id, msg.sender)) {
+            s_projectFromId[id].contributors.push(msg.sender);
         }
-        s_projectFromId[_id].raised += msg.value;
-        IERC20(s_projectFromId[_id].token).transfer(msg.sender, tokenAmount);
-        emit UserJoinedProject(_id, msg.sender, tokenAmount, calculatePrice(oldSupply));
+        s_projectFromId[id].raised += msg.value;
+        IERC20(s_projectFromId[id].token).transfer(msg.sender, tokenAmount);
+        emit UserJoinedProject(id, msg.sender, tokenAmount, calculatePrice(oldSupply));
     }
 
-    function leaveOngoingProjectPresale(uint256 _id, uint256 _tokenAmount) external nonReentrant validId(_id) {
-        leaveOngoingProjectPresaleChecks(_id, _tokenAmount);
+    function leaveOngoingProjectPresale(uint256 id, uint256 tokenAmount, uint256 expectedEthAmount) external nonReentrant validId(id) {
+        Check.projectIsPending(s_projectFromId[id].status == ProjectStatus.Pending, id);
+        Check.projectHasStarted(s_projectFromId[id].startTime, id);
+        Check.projectHasNotEnded(projectHasEnded(id), id);
+        Check.tokenAmountIsGreaterThanZero(tokenAmount);
+        Check.userHasTokenBalance(IERC20(s_projectFromId[id].token).balanceOf(msg.sender), tokenAmount, id);
 
-        uint256 oldSupply = s_projectFromId[_id].initialTokenAmount - IERC20(s_projectFromId[_id].token).balanceOf(address(this));
-        uint256 ethAmount = calculateSellAmount(_tokenAmount, oldSupply);
+        uint256 oldSupply = s_projectFromId[id].initialTokenAmount - IERC20(s_projectFromId[id].token).balanceOf(address(this));
+        uint256 ethAmount = calculateSellAmount(tokenAmount, oldSupply);
+        Check.ethAmountIsNotLessThanExpected(ethAmount, expectedEthAmount);
         
-        s_projectFromId[_id].raised -= ethAmount;
-        IERC20(s_projectFromId[_id].token).transferFrom(msg.sender, address(this), _tokenAmount);
+        s_projectFromId[id].raised -= ethAmount;
+        IERC20(s_projectFromId[id].token).transferFrom(msg.sender, address(this), tokenAmount);
         sendEther(payable(msg.sender), ethAmount);
-        emit UserLeftPendingProject(_id, msg.sender, _tokenAmount, calculatePrice(oldSupply));
+        emit UserLeftPendingProject(id, msg.sender, tokenAmount, calculatePrice(oldSupply));
     }
 
-    function leaveUnsuccessfulProjectPresale(uint256 _id) external nonReentrant validId(_id) {
-        uint256 userTokenBalance = leaveUnsuccessfulProjectPresaleChecks(_id);
+    function leaveUnsuccessfulProjectPresale(uint256 id) external nonReentrant validId(id) {
+        Check.projectHasFailed(s_projectFromId[id].status != ProjectStatus.Failed, id);
+        Check.userHasContributed(contributorExists(id, msg.sender), id, msg.sender);
+        uint256 userTokenBalance = IERC20(s_projectFromId[id].token).balanceOf(msg.sender); 
+        Check.userHasTokenBalance(IERC20(s_projectFromId[id].token).balanceOf(msg.sender), userTokenBalance, id);
 
         // Calculate ether to give back
-        uint256 etherToGiveBack = userTokenBalance * s_projectFromId[_id].priceAfterFailure / DECIMALS;
+        uint256 etherToGiveBack = userTokenBalance * s_projectFromId[id].priceAfterFailure / DECIMALS;
         // Burn user tokens
-        ERC20Ownable(s_projectFromId[_id].token).burn(msg.sender, userTokenBalance);
+        ERC20Ownable(s_projectFromId[id].token).burn(msg.sender, userTokenBalance);
         // give back ether
         sendEther(payable(msg.sender), etherToGiveBack);
-        emit UserLeftProject(_id, msg.sender, etherToGiveBack);
+        emit UserLeftProject(id, msg.sender, etherToGiveBack);
     }
 
     // Should be called when presale has pendinig status but has either succeded or time ended
-    function endPresale(uint256 _id) external nonReentrant validId(_id) {
-        endPresaleChecks(_id);
+    function endPresale(uint256 id) external nonReentrant validId(id) {
+        Check.projectIsPending(s_projectFromId[id].status == ProjectStatus.Pending, id);
+        Check.projectHasEnded(projectHasEnded(id), id);
 
         // Update project status
-        _updateProjectStatus(_id);
+        _updateProjectStatus(id);
         
-        if (projectSuccessful(_id)) {
+        if (projectSuccessful(id)) {
             // Calculate successful-end fee (in ether)
-            uint256 successfulEndFeeAmount = s_projectFromId[_id].raised * s_successfulEndFee / DECIMALS;
+            uint256 successfulEndFeeAmount = s_projectFromId[id].raised * s_successfulEndFee / DECIMALS;
             // Send ether as fee to project creator
-            sendEther(payable(s_projectFromId[_id].creator), successfulEndFeeAmount);
+            sendEther(payable(s_projectFromId[id].creator), successfulEndFeeAmount);
             // Reduce amount raised by project creator fee and fee collector fee
-            uint256 amountRaisedAfterFees = s_projectFromId[_id].raised - (2 * successfulEndFeeAmount);
+            uint256 amountRaisedAfterFees = s_projectFromId[id].raised - (2 * successfulEndFeeAmount);
             // Wrap ETH into WETH
             // IWETH9(s_weth).approve()
             IWETH9(s_weth).deposit{value: amountRaisedAfterFees}();
             // Sort the tokens
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
-                _sortTokens(s_weth, s_projectFromId[_id].token, amountRaisedAfterFees, getTotalTokensOwed(_id));
+                _sortTokens(s_weth, s_projectFromId[id].token, amountRaisedAfterFees, getTotalTokensOwed(id));
             // Deploy the pool
-            s_projectFromId[_id].pool = _deployPool(s_projectFromId[_id].poolType, token0, token1, amount0, amount1);
+            s_projectFromId[id].pool = _deployPool(s_projectFromId[id].poolType, token0, token1, amount0, amount1);
         } else {
             // Calculate price after failure
-            s_projectFromId[_id].priceAfterFailure = s_projectFromId[_id].raised * DECIMALS / getTotalTokensOwed(_id);
+            s_projectFromId[id].priceAfterFailure = s_projectFromId[id].raised * DECIMALS / getTotalTokensOwed(id);
         }
         // Burn remaining tokens
-        uint256 remainingTokens = IERC20(s_projectFromId[_id].token).balanceOf(address(this));
-        ERC20Ownable(s_projectFromId[_id].token).burn(address(this), remainingTokens);
+        uint256 remainingTokens = IERC20(s_projectFromId[id].token).balanceOf(address(this));
+        ERC20Ownable(s_projectFromId[id].token).burn(address(this), remainingTokens);
         // Mint the locked tokens so that the project creator can claim them when lock period is over
-        uint256 lockAmount = getTotalTokensOwed(_id) * LOCK_PERCENTAGE / DECIMALS;
-        ERC20Ownable(s_projectFromId[_id].token).mint(address(this), lockAmount);
+        uint256 lockAmount = getTotalTokensOwed(id) * LOCK_PERCENTAGE / DECIMALS;
+        ERC20Ownable(s_projectFromId[id].token).mint(address(this), lockAmount);
     }
 
-    function claimLockedTokens(uint256 _id) external nonReentrant validId(_id) {
-        claimLockedTokensChecks(_id);
+    function claimLockedTokens(uint256 id) external nonReentrant validId(id) {
+        Check.msgSenderIsProjectCreator(s_projectFromId[id].creator == msg.sender);
+        Check.projectIsSuccessful(s_projectFromId[id].status == ProjectStatus.Success, id);
+        Check.lockPeriodIsOver(s_projectFromId[id].startTime + LOCK_PERIOD, id);
+        Check.creatorHasNotClaimedLockedTokens(s_projectFromId[id].creatorClaimedLockedTokens, id);
 
-        s_projectFromId[_id].creatorClaimedLockedTokens = true;
-        emit LockedTokensClaimed(_id, msg.sender);
-        uint256 lockedAmount = s_projectFromId[_id].raised * LOCK_PERCENTAGE / DECIMALS;
+        s_projectFromId[id].creatorClaimedLockedTokens = true;
+        emit LockedTokensClaimed(id, msg.sender);
+        uint256 lockedAmount = s_projectFromId[id].raised * LOCK_PERCENTAGE / DECIMALS;
         sendEther(payable(msg.sender), lockedAmount);
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                GETTERS
+    //////////////////////////////////////////////////////////////*/
+
+    /// External ///
+
+    // Get Bonding Curve Presale Project
+    function getBCPProject(uint256 id) external view returns (Project memory) {
+        return s_projectFromId[id];
+    }
+
+    /// Public ///
+
+    function getSoftCap(uint256 id) public view returns (uint256) {
+        return getMaxPresaleTokenAmount(id) * SOFTCAP_PERCENTAGE / DECIMALS;
+    }
+
+    function getTotalTokensOwed(uint256 id) public view returns (uint256) {
+        return s_projectFromId[id].initialTokenAmount - IERC20(s_projectFromId[id].token).balanceOf(address(this));
+    }
+
+    function getRemainingTokens(uint256 id) public view returns (uint256) {
+        // max tokens that can be presold
+        uint256 maxTokensToBeDistributed = getMaxPresaleTokenAmount(id);
+        // tokens that can be presold
+        uint256 remainingTokens = maxTokensToBeDistributed - getTotalTokensOwed(id);
+        return remainingTokens;
+    }
+
+    function getMaxPresaleTokenAmount(uint256 id) public view returns (uint256) {
+        return s_projectFromId[id].initialTokenAmount / 2;
+    }
+
+    function projectHasEnded(uint256 id) public view returns (bool) {
+        return s_projectFromId[id].endTime < block.timestamp || getRemainingTokens(id) == 0;
+    }
+
+    function projectSuccessful(uint256 id) public view returns (bool) {
+        return getTotalTokensOwed(id) >= getSoftCap(id);
+    }
+
+    function contributorExists(uint256 id, address _contributor) public view returns(bool) {
+        uint256 amount = IERC20(s_projectFromId[id].token).balanceOf(_contributor);
+        if (amount > 0) {
+            return true;
+        }
+        return false;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                          PRICE CALCULATIONS
+    //////////////////////////////////////////////////////////////*/
+
+    function calculateBuyAmount(uint256 ethAmount, uint256 supply) public pure returns (uint256) {
+        uint256 price = calculatePrice(supply);
+        return ethAmount * DECIMALS / price;
+    }
+
+    function calculateSellAmount(uint256 tokenAmount, uint256 supply) public pure returns (uint256) {
+        uint256 price = calculatePrice(supply - tokenAmount);
+        return tokenAmount * price / DECIMALS;
+    }
+
+    function calculatePrice(uint256 supply) public pure returns (uint256) {
+        return PRICE_CHANGE_SLOPE * supply / DECIMALS + BASE_PRICE;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                PRIVATE
+    //////////////////////////////////////////////////////////////*/
+
+    function _updateProjectStatus(uint256 id) private {
+        if (projectSuccessful(id)) {
+            s_projectFromId[id].status = ProjectStatus.Success;
+        } else {
+            s_projectFromId[id].status = ProjectStatus.Failed;
+        }
+        emit ProjectStatusUpdated(id, s_projectFromId[id].status);
     }
 }

@@ -19,7 +19,7 @@ import { ConstantProductFactory } from "@balancer/scaffold-balancer-v3/packages/
 
 /**
  * @title Deploy Constant Product Pool
- * @notice Deploys, registers, and initializes a constant product pool that uses a Lottery Hook
+ * @notice Deploys, registers, and initializes a constant product pool
  */
 contract BalancerPoolDeployer is PoolHelpers {
     IVault internal vault;
