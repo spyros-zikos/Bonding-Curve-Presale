@@ -1,12 +1,7 @@
-// Copy-pasted because addresses were hardcoded
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.8.24;
 
-import {
-    TokenConfig,
-    LiquidityManagement,
-    PoolRoleAccounts
-} from "@balancer-labs/v3-interfaces/contracts/vault/VaultTypes.sol";
+import { TokenConfig } from "@balancer-labs/v3-interfaces/contracts/vault/VaultTypes.sol";
 import { IRouter } from "@balancer-labs/v3-interfaces/contracts/vault/IRouter.sol";
 import { IBatchRouter } from "@balancer-labs/v3-interfaces/contracts/vault/IBatchRouter.sol";
 import { IPermit2 } from "permit2/src/interfaces/IPermit2.sol";
@@ -16,15 +11,15 @@ import { IRouter } from "@balancer-labs/v3-interfaces/contracts/vault/IRouter.so
 
 /**
  * @title Pool Helpers
- * @notice Helpful types, interface instances, and functions for deploying pools on Balancer v3
+ * @notice Helpful functions for deploying pools on Balancer v3
  */
 contract PoolHelpers {
-    IRouter private router;
-    IPermit2 private permit2;
+    IRouter private immutable i_router;
+    IPermit2 private immutable i_permit2;
 
-    constructor(address _router, address _permit2) {
-        router = IRouter(_router);
-        permit2 = IPermit2(_permit2);
+    constructor(address router, address permit2) {
+        i_router = IRouter(router);
+        i_permit2 = IPermit2(permit2);
     }
 
     /**
@@ -43,9 +38,9 @@ contract PoolHelpers {
      * @param tokens Array of tokens to approve the router to spend using Permit2
      */
     function approveRouterWithPermit2(IERC20[] memory tokens) internal {
-        tokens[0].approve(address(permit2), type(uint256).max);
-        tokens[1].approve(address(permit2), type(uint256).max);
-        permit2.approve(address(tokens[0]), address(router), type(uint160).max, type(uint48).max);
-        permit2.approve(address(tokens[1]), address(router), type(uint160).max, type(uint48).max);
+        tokens[0].approve(address(i_permit2), type(uint256).max);
+        tokens[1].approve(address(i_permit2), type(uint256).max);
+        i_permit2.approve(address(tokens[0]), address(i_router), type(uint160).max, type(uint48).max);
+        i_permit2.approve(address(tokens[1]), address(i_router), type(uint160).max, type(uint48).max);
     }
 }

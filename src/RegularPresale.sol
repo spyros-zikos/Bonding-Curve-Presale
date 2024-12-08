@@ -2,12 +2,12 @@
 pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {PriceConverter} from "./lib/PriceConverter.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {IWETH9} from "./Uniswap/IWETH9.sol";
-import {PoolDeployer, PoolType} from "./utils/PoolDeployer.sol";
 import {Presale, ProjectStatus} from "./utils/Presale.sol";
+import {PoolDeployer, PoolType} from "./utils/PoolDeployer.sol";
 import {Check} from "./lib/Check.sol";
+import {PriceConverter} from "./lib/PriceConverter.sol";
 
 
 contract RegularPresale is Presale, PoolDeployer {
@@ -28,7 +28,6 @@ contract RegularPresale is Presale, PoolDeployer {
     uint256 private s_creationFee;
     AggregatorV3Interface private s_priceFeed;
     mapping (uint256 id => Project project) private s_projectFromId;
-    mapping (uint256 id => mapping(address contributor => uint256 tokenAmount)) private s_tokensOwedToContributor;
 
     event ProjectCreated(
         uint256 lastProjectId,
@@ -42,197 +41,197 @@ contract RegularPresale is Presale, PoolDeployer {
     event UserLeftProject(uint256 id, address contributor, uint256 etherToGiveBack);
     event ProjectStatusUpdated(uint256 id, ProjectStatus status);
 
-    modifier validId(uint256 _id) {
-        Check.validId(_id, s_lastProjectId);
+    modifier validId(uint256 id) {
+        Check.validId(id, s_lastProjectId);
         _;
     }
 
     constructor(
-        uint256 _creationFee,
-        uint256 _successfulEndFee,
-        address _feeCollector,
-        address _priceFeed,
-        address _uniFactory,
-        address _nonfungiblePositionManager,
-        address _weth,  // from uniswap
-        address _balancerVault,
-        address _balancerRouter,
-        address _CPFactory,
-        address _balancerPermit2
+        uint256 creationFee,
+        uint256 successfulEndFee,
+        address feeCollector,
+        address priceFeed,
+        address uniFactory,
+        address nonfungiblePositionManager,
+        address weth,  // from uniswap
+        address balancerVault,
+        address balancerRouter,
+        address CPFactory,
+        address balancerPermit2
     ) 
-        Presale(_feeCollector, _weth, _successfulEndFee)
+        Presale(feeCollector, weth, successfulEndFee)
         PoolDeployer(
-            _uniFactory,
-            _nonfungiblePositionManager,
-            _balancerVault,
-            _balancerRouter,
-            _CPFactory,
-            _balancerPermit2
+            uniFactory,
+            nonfungiblePositionManager,
+            balancerVault,
+            balancerRouter,
+            CPFactory,
+            balancerPermit2
         )
     {
-        s_creationFee = _creationFee;
-        s_priceFeed = AggregatorV3Interface(_priceFeed);
+        s_creationFee = creationFee;
+        s_priceFeed = AggregatorV3Interface(priceFeed);
     }
 
     // Function to receive Ether. msg.data must be empty
     receive() external payable {}
 
     function createPresale(
-        address _token,
-        uint256 _tokenPrice,
-        uint256 _initialTokenAmount, // must be even number so that half goes to presale and half to pool
-        uint256 _startTime,
-        uint256 _endTime,
-        PoolType _poolType
+        address token,
+        uint256 tokenPrice,
+        uint256 initialTokenAmount, // must be even number so that half goes to presale and half to pool
+        uint256 startTime,
+        uint256 endTime,
+        PoolType poolType
     ) external payable nonReentrant {  // probably does not need nonReentrant but just in case
-        Check.tokenIsValid(_token);
-        Check.tokenPriceIsValid(_tokenPrice);
-        Check.startTimeIsInTheFuture(_startTime);
-        Check.endTimeIsAfterStartTime(_startTime, _endTime);
+        Check.tokenIsValid(token);
+        Check.tokenPriceIsValid(tokenPrice);
+        Check.startTimeIsInTheFuture(startTime);
+        Check.endTimeIsAfterStartTime(startTime, endTime);
         Check.msgValueIsGreaterThanZero();
         // Calculate fee paid
         uint256 msgValueInUsd = PriceConverter.getConversionRate(msg.value, s_priceFeed);
         Check.correctFeePaid(msgValueInUsd, s_creationFee);
-        Check.initialTokenAmountIsEven(_initialTokenAmount);
+        Check.initialTokenAmountIsEven(initialTokenAmount);
 
         // Transfer initial token amount from user to this contract
-        IERC20(_token).transferFrom(msg.sender, address(this), _initialTokenAmount);
+        IERC20(token).transferFrom(msg.sender, address(this), initialTokenAmount);
         s_lastProjectId += 1;
-        address[] memory _contributors;
+        address[] memory contributors;
         s_projectFromId[s_lastProjectId] = Project({
-            token: _token,
-            price: _tokenPrice,
-            initialTokenAmount: _initialTokenAmount,
+            token: token,
+            price: tokenPrice,
+            initialTokenAmount: initialTokenAmount,
             raised: 0,
-            startTime: _startTime,
-            endTime: _endTime,
+            startTime: startTime,
+            endTime: endTime,
             creator: msg.sender,
-            contributors: _contributors,
+            contributors: contributors,
             status: ProjectStatus.Pending,
-            poolType: _poolType,
+            poolType: poolType,
             pool: address(0)
         });
-        emit ProjectCreated(s_lastProjectId, _token, _tokenPrice, _initialTokenAmount, _startTime, _endTime);
+        emit ProjectCreated(s_lastProjectId, token, tokenPrice, initialTokenAmount, startTime, endTime);
     }
 
-    function joinProjectPresale(uint256 _id) external payable nonReentrant validId(_id) {
-        Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
-        Check.projectHasStarted(s_projectFromId[_id].startTime, _id);
-        Check.projectHasNotEnded(projectHasEnded(_id), _id);
-        Check.thereAreRemainingTokens(getRemainingTokens(_id), _id);
+    function joinProjectPresale(uint256 id) external payable nonReentrant validId(id) {
+        Check.projectIsPending(s_projectFromId[id].status == ProjectStatus.Pending, id);
+        Check.projectHasStarted(s_projectFromId[id].startTime, id);
+        Check.projectHasNotEnded(projectHasEnded(id), id);
+        Check.thereAreRemainingTokens(getRemainingTokens(id), id);
         Check.msgValueIsGreaterThanZero();
 
-        uint256 tokenAmount = msg.value * DECIMALS / s_projectFromId[_id].price;
+        uint256 tokenAmount = msg.value * DECIMALS / s_projectFromId[id].price;
         // Check if contributions surpass max presale token amount, then give only what is left
-        if (getRemainingTokens(_id) < tokenAmount) {
-            tokenAmount = getRemainingTokens(_id);
+        if (getRemainingTokens(id) < tokenAmount) {
+            tokenAmount = getRemainingTokens(id);
         }
         // Add contributor to project
-        if (!contributorExists(_id, msg.sender)) {
-            s_projectFromId[_id].contributors.push(msg.sender);
+        if (!contributorExists(id, msg.sender)) {
+            s_projectFromId[id].contributors.push(msg.sender);
         }
-        s_tokensOwedToContributor[_id][msg.sender] += tokenAmount;
-        s_projectFromId[_id].raised += msg.value;
-        emit UserJoinedProject(_id, msg.sender, tokenAmount);
+        s_tokensOwedToContributor[id][msg.sender] += tokenAmount;
+        s_projectFromId[id].raised += msg.value;
+        emit UserJoinedProject(id, msg.sender, tokenAmount);
     }
 
-    function leaveUnsuccessfulProjectPresale(uint256 _id) external nonReentrant validId(_id) {
-        Check.projectHasFailed(s_projectFromId[_id].status != ProjectStatus.Failed, _id);
-        Check.userHasContributed(contributorExists(_id, msg.sender), _id, msg.sender);
+    function leaveUnsuccessfulProjectPresale(uint256 id) external nonReentrant validId(id) {
+        Check.projectHasFailed(s_projectFromId[id].status != ProjectStatus.Failed, id);
+        Check.userHasContributed(contributorExists(id, msg.sender), id, msg.sender);
 
         // Calculate ether to give back
-        uint256 etherToGiveBack = s_tokensOwedToContributor[_id][msg.sender] * s_projectFromId[_id].price / DECIMALS;
+        uint256 etherToGiveBack = s_tokensOwedToContributor[id][msg.sender] * s_projectFromId[id].price / DECIMALS;
         // Reset tokens owed to user
-        s_tokensOwedToContributor[_id][msg.sender] = 0;
+        s_tokensOwedToContributor[id][msg.sender] = 0;
         // give it back
         sendEther(payable(msg.sender), etherToGiveBack);
-        emit UserLeftProject(_id, msg.sender, etherToGiveBack);
+        emit UserLeftProject(id, msg.sender, etherToGiveBack);
     }
 
     // Should be called when presale has pendinig status but has either succeded or time ended
-    function endPresale(uint256 _id) external nonReentrant validId(_id) {
-        Check.projectIsPending(s_projectFromId[_id].status == ProjectStatus.Pending, _id);
-        Check.projectHasEnded(projectHasEnded(_id), _id);
+    function endPresale(uint256 id) external nonReentrant validId(id) {
+        Check.projectIsPending(s_projectFromId[id].status == ProjectStatus.Pending, id);
+        Check.projectHasEnded(projectHasEnded(id), id);
 
         // Update project status
-        _updateProjectStatus(_id);
+        _updateProjectStatus(id);
         
-        if (projectSuccessful(_id)) {
+        if (projectSuccessful(id)) {
             // Distribute tokens to contributors
-            uint256 contributorsLength = s_projectFromId[_id].contributors.length;
+            uint256 contributorsLength = s_projectFromId[id].contributors.length;
             for (uint256 i = 0; i < contributorsLength; i++) {
-                address contributor = s_projectFromId[_id].contributors[i];
-                uint256 tokensToGive = s_tokensOwedToContributor[_id][contributor];
-                IERC20(s_projectFromId[_id].token).transfer(contributor, tokensToGive);
+                address contributor = s_projectFromId[id].contributors[i];
+                uint256 tokensToGive = s_tokensOwedToContributor[id][contributor];
+                IERC20(s_projectFromId[id].token).transfer(contributor, tokensToGive);
             }
             // Calculate successful-end fee (in ether)
-            uint256 successfulEndFeeAmount = s_projectFromId[_id].raised * s_successfulEndFee / DECIMALS;
+            uint256 successfulEndFeeAmount = s_projectFromId[id].raised * i_successfulEndFee / DECIMALS;
             // Send ether as fee to project creator
-            sendEther(payable(s_projectFromId[_id].creator), successfulEndFeeAmount);
+            sendEther(payable(s_projectFromId[id].creator), successfulEndFeeAmount);
             // Reduce amount raised by 2*successfulEndFeeAmount
             // so that successfulEndFeeAmount is sent to creator
             // and successfulEndFeeAmount remains in the contract for the fee collector to collct
-            uint256 amountRaisedAfterFees = s_projectFromId[_id].raised - (2 * successfulEndFeeAmount);
+            uint256 amountRaisedAfterFees = s_projectFromId[id].raised - (2 * successfulEndFeeAmount);
             // Wrap ETH into WETH
-            IWETH9(s_weth).deposit{value: amountRaisedAfterFees}();
+            IWETH9(i_weth).deposit{value: amountRaisedAfterFees}();
             // Sort the tokens
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
-                _sortTokens(s_weth, s_projectFromId[_id].token, amountRaisedAfterFees, getTotalTokensOwed(_id));
+                _sortTokens(i_weth, s_projectFromId[id].token, amountRaisedAfterFees, getTotalTokensOwed(id));
             // Deploy the pool
-            s_projectFromId[_id].pool = _deployPool(s_projectFromId[_id].poolType, token0, token1, amount0, amount1);
+            s_projectFromId[id].pool = _deployPool(s_projectFromId[id].poolType, token0, token1, amount0, amount1);
         }
         // Send remaining/all (depending on project being successful/failed) tokens to project creator
-        uint256 remainingTokens = IERC20(s_projectFromId[_id].token).balanceOf(address(this));
+        uint256 remainingTokens = IERC20(s_projectFromId[id].token).balanceOf(address(this));
         if (remainingTokens > 0) {
-            IERC20(s_projectFromId[_id].token).transfer(s_projectFromId[_id].creator, remainingTokens);
+            IERC20(s_projectFromId[id].token).transfer(s_projectFromId[id].creator, remainingTokens);
         }
     }
 
-    function getRPProject(uint256 _id) external view returns (Project memory) {
-        return s_projectFromId[_id];
+    function getRPProject(uint256 id) external view returns (Project memory) {
+        return s_projectFromId[id];
     }
 
-    function getTokensOwedToContributor(uint256 _id, address _contributor) external view returns (uint256) {
-        return s_tokensOwedToContributor[_id][_contributor];
+    function getTokensOwedToContributor(uint256 id, address contributor) external view returns (uint256) {
+        return s_tokensOwedToContributor[id][contributor];
     }
 
     ////////////////// Public //////////////////////////
 
-    function getSoftCap(uint256 _id) public view returns (uint256) {
-        return getMaxPresaleTokenAmount(_id) * SOFTCAP_PERCENTAGE / DECIMALS;
+    function getSoftCap(uint256 id) public view returns (uint256) {
+        return getMaxPresaleTokenAmount(id) * SOFTCAP_PERCENTAGE / DECIMALS;
     }
 
-    function getTotalTokensOwed(uint256 _id) public view returns (uint256) {
+    function getTotalTokensOwed(uint256 id) public view returns (uint256) {
         uint256 totalTokensOwed = 0;
-        uint256 contributorsLength = s_projectFromId[_id].contributors.length;
+        uint256 contributorsLength = s_projectFromId[id].contributors.length;
         for (uint256 i = 0; i < contributorsLength; i++) {
-            totalTokensOwed += s_tokensOwedToContributor[_id][s_projectFromId[_id].contributors[i]];
+            totalTokensOwed += s_tokensOwedToContributor[id][s_projectFromId[id].contributors[i]];
         }
         return totalTokensOwed;
     }
 
-    function getRemainingTokens(uint256 _id) public view returns (uint256) {
+    function getRemainingTokens(uint256 id) public view returns (uint256) {
         // max tokens that can be presold
-        uint256 maxTokensToBeDistributed = getMaxPresaleTokenAmount(_id);
+        uint256 maxTokensToBeDistributed = getMaxPresaleTokenAmount(id);
         // tokens that can be presold
-        uint256 remainingTokens = maxTokensToBeDistributed - getTotalTokensOwed(_id);
+        uint256 remainingTokens = maxTokensToBeDistributed - getTotalTokensOwed(id);
         return remainingTokens;
     }
 
-    function getMaxPresaleTokenAmount(uint256 _id) public view returns (uint256) {
-        return s_projectFromId[_id].initialTokenAmount / 2;
+    function getMaxPresaleTokenAmount(uint256 id) public view returns (uint256) {
+        return s_projectFromId[id].initialTokenAmount / 2;
     }
 
-    function projectHasEnded(uint256 _id) public view returns (bool) {
-        return s_projectFromId[_id].endTime < block.timestamp || getRemainingTokens(_id) == 0;
+    function projectHasEnded(uint256 id) public view returns (bool) {
+        return s_projectFromId[id].endTime < block.timestamp || getRemainingTokens(id) == 0;
     }
 
-    function projectSuccessful(uint256 _id) public view returns (bool) {
-        return getTotalTokensOwed(_id) >= getSoftCap(_id);
+    function projectSuccessful(uint256 id) public view returns (bool) {
+        return getTotalTokensOwed(id) >= getSoftCap(id);
     }
 
-    function contributorExists(uint256 _id, address _contributor) public view returns(bool) {
-        uint256 amount = s_tokensOwedToContributor[_id][_contributor];
+    function contributorExists(uint256 id, address contributor) public view returns(bool) {
+        uint256 amount = s_tokensOwedToContributor[id][contributor];
         if (amount > 0) {
             return true;
         }
@@ -241,12 +240,12 @@ contract RegularPresale is Presale, PoolDeployer {
 
     ////////////////// Private //////////////////////////
 
-    function _updateProjectStatus(uint256 _id) private {
-        if (projectSuccessful(_id)) {
-            s_projectFromId[_id].status = ProjectStatus.Success;
+    function _updateProjectStatus(uint256 id) private {
+        if (projectSuccessful(id)) {
+            s_projectFromId[id].status = ProjectStatus.Success;
         } else {
-            s_projectFromId[_id].status = ProjectStatus.Failed;
+            s_projectFromId[id].status = ProjectStatus.Failed;
         }
-        emit ProjectStatusUpdated(_id, s_projectFromId[_id].status);
+        emit ProjectStatusUpdated(id, s_projectFromId[id].status);
     }
 }

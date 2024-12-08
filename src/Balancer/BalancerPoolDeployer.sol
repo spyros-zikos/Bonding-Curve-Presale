@@ -22,26 +22,26 @@ import { ConstantProductFactory } from "@balancer/scaffold-balancer-v3/packages/
  * @notice Deploys, registers, and initializes a constant product pool
  */
 contract BalancerPoolDeployer is PoolHelpers {
-    IVault internal vault;
-    IRouter internal router;
-    ConstantProductFactory internal factory;
-    uint256 internal swapFee;
+    IVault private immutable i_vault;
+    IRouter private immutable i_router;
+    ConstantProductFactory private immutable i_factory;
+    uint256 private immutable i_swapFee;
 
-    constructor(address _vault, address _router, address _factory, address _permit2, uint256 _swapFee) PoolHelpers(_router, _permit2) {
-        vault = IVault(_vault);
-        router = IRouter(_router);
-        factory = ConstantProductFactory(_factory);
-        swapFee = _swapFee;
+    constructor(address vault, address router, address factory, address permit2, uint256 swapFee) PoolHelpers(router, permit2) {
+        i_vault = IVault(vault);
+        i_router = IRouter(router);
+        i_factory = ConstantProductFactory(factory);
+        i_swapFee = swapFee;
     }
 
     function deployConstantProductPool(address token1, address token2, uint256 amount1, uint256 amount2) internal returns(address) {
         // Deploy a pool and register it with the vault
-        address pool = factory.create(
+        address pool = i_factory.create(
             "Constant Product Pool", // name for the pool
             "CPP", // symbol for the BPT
             keccak256(abi.encode(block.number)), // salt for the pool deployment via factory
             getTokenConfig(token1, token2),
-            swapFee,
+            i_swapFee,
             false,
             PoolRoleAccounts({
                 pauseManager: address(0), // Account empowered to pause/unpause the pool (or 0 to delegate to governance)
@@ -68,7 +68,7 @@ contract BalancerPoolDeployer is PoolHelpers {
         approveRouterWithPermit2(tokens);
 
         // Seed the pool with initial liquidity using Router as entrypoint
-        router.initialize(
+        i_router.initialize(
             pool,
             tokens,
             exactAmountsIn,

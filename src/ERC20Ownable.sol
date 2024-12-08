@@ -9,9 +9,9 @@ contract ERC20Ownable is ERC20, Ownable {
 	event TokensBurned(address indexed from, uint256 amount);
 
 	constructor(
-		string memory name_,
-		string memory symbol_
-	) ERC20(name_, symbol_) Ownable(msg.sender) {}
+		string memory name,
+		string memory symbol
+	) ERC20(name, symbol) Ownable(msg.sender) {}
 
 	function mint(address to, uint256 amount) external onlyOwner {
 		_mint(to, amount);
@@ -22,10 +22,4 @@ contract ERC20Ownable is ERC20, Ownable {
 		_burn(from, amount);
 		emit TokensBurned(from, amount);
 	}
-
-	// function approve(address spender, uint256 value) public override returns (bool) {
-    //     address owner = _msgSender();
-    //     _approve(owner, spender, value);
-    //     return true;
-    // }
 }

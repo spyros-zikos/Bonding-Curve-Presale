@@ -25,11 +25,11 @@ build:; forge build --via-ir
 
 test :; @forge test --fork-url $(SEPOLIA_RPC_URL) --via-ir
 
-snapshot :; forge snapshot
+# snapshot :; forge snapshot
 
-format :; forge fmt
+# format :; forge fmt
 
-anvil :; anvil -m 'test test test test test test test test test test test junk' --steps-tracing --block-time 2
+# anvil :; anvil -m 'test test test test test test test test test test test junk' --steps-tracing --block-time 2
 
 NETWORK_ARGS := --rpc-url http://localhost:8545 --private-key $(DEFAULT_ANVIL_KEY) --broadcast
 

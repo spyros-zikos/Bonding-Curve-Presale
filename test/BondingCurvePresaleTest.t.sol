@@ -121,11 +121,9 @@ contract BondingCurvePresaleTest is Test {
 
         // ##################################################
         console.log("--- investor1 leaves presale ---");
-        _investorLeavesPresale(START_TIME + 101, investor1, token.balanceOf(investor1), id, token);
+        _investorLeavesPresale(START_TIME + 101, investor1, id, token);
         // ##################################################
 
-        // vm.prank(projectCreator);
-        // IERC20(presale.getBCPProject(id).token).approve(address(config.CPFactory), type(uint256).max);
         _feeCollectorEndsPresale(START_TIME + 1001, id);
 
         // Check if project succeded
@@ -159,12 +157,12 @@ contract BondingCurvePresaleTest is Test {
         console.log("price: ", presale.calculatePrice(presale.getTotalTokensOwed(id)));
     }
 
-    function _investorLeavesPresale(uint256 time, address investor, uint256 amount, uint256 id, IERC20 token) private {
+    function _investorLeavesPresale(uint256 time, address investor,uint256 id, IERC20 token) private {
         vm.warp(time);
         vm.prank(investor);
         token.approve(address(presale), type(uint256).max);
         vm.prank(investor);
-        presale.leaveOngoingProjectPresale(id, amount, 0);
+        presale.leaveOngoingProjectPresale(id, 0);
         console.log("total tokens owed: ", presale.getTotalTokensOwed(id));
         console.log("investor token balance: ", token.balanceOf(investor));
         console.log("investor eth balance: ", investor.balance);

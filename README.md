@@ -1,66 +1,37 @@
-## Foundry
+## Set-up
+Create a .env file in the root directory with the following variables:
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
-
-Foundry consists of:
-
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
+```
+SEPOLIA_RPC_URL=https://...
+PRIVATE_KEY=0x...
+ETHERSCAN_API_KEY=...
+FEE_COLLECTOR=0x...
+PROJECT_CREATOR_ADDRESS=0x...
+```
+Notes  
+1.The FEE_COLLECTOR is the address of the private key.  
+2.The PROJECT_CREATOR_ADDRESS is used for forked testing and is the recepient address of the ERC20Ownable deployment script.
 
 ## Usage
 
 ### Build
 
 ```shell
-$ forge build
+$ make build
 ```
 
 ### Test
 
 ```shell
-$ forge test
-```
-
-### Format
-
-```shell
-$ forge fmt
-```
-
-### Gas Snapshots
-
-```shell
-$ forge snapshot
-```
-
-### Anvil
-
-```shell
-$ anvil
+$ make test
 ```
 
 ### Deploy
 
 ```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+$ make deployRegular ARGS="--network sepolia"
 ```
 
-### Cast
-
 ```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
+$ make deployBondingCurve ARGS="--network sepolia"
 ```

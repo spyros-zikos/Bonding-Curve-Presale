@@ -25,10 +25,10 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         bool creatorClaimedLockedTokens;
     }
 
-    uint256 constant private PRICE_CHANGE_SLOPE = 0.01e18;  // slope
-    uint256 constant private BASE_PRICE = 0.01e18;  // base price
-    uint256 constant private LOCK_PERIOD = 6 * 30 * 24 * 60 * 60; // 6 months
-    uint256 constant private LOCK_PERCENTAGE = 10e16; // 10%
+    uint256 private constant PRICE_CHANGE_SLOPE = 0.01e18;  // slope
+    uint256 private constant BASE_PRICE = 0.01e18;  // base price
+    uint256 private constant LOCK_PERIOD = 6 * 30 * 24 * 60 * 60; // 6 months
+    uint256 private constant LOCK_PERCENTAGE = 10e16; // 10%
     mapping (uint256 id => Project project) private s_projectFromId;
 
     event ProjectCreated(uint256 id, address token, uint256 initialTokenAmount, uint256 startTime, uint256 endTime);
@@ -109,34 +109,39 @@ contract BondingCurvePresale is PoolDeployer, Presale {
 
         uint256 oldSupply = s_projectFromId[id].initialTokenAmount - IERC20(s_projectFromId[id].token).balanceOf(address(this));
         uint256 tokenAmount = calculateBuyAmount(msg.value, oldSupply);
-        Check.tokenAmountIsNotLessThanExpected(tokenAmount, expectedTokenAmount);
         
         // Check if contributions surpass max presale token amount, then give only what is left
         if (getRemainingTokens(id) < tokenAmount) {
             tokenAmount = getRemainingTokens(id);
         }
+        
+        Check.tokenAmountIsNotLessThanExpected(tokenAmount, expectedTokenAmount);
 
         // Add contributor to project
         if (!contributorExists(id, msg.sender)) {
             s_projectFromId[id].contributors.push(msg.sender);
         }
+        s_tokensOwedToContributor[id][msg.sender] += tokenAmount;
         s_projectFromId[id].raised += msg.value;
         IERC20(s_projectFromId[id].token).transfer(msg.sender, tokenAmount);
         emit UserJoinedProject(id, msg.sender, tokenAmount, calculatePrice(oldSupply));
     }
 
-    function leaveOngoingProjectPresale(uint256 id, uint256 tokenAmount, uint256 expectedEthAmount) external nonReentrant validId(id) {
+    // Sell back all the tokens that the user has
+    function leaveOngoingProjectPresale(uint256 id, uint256 expectedEthAmount) external nonReentrant validId(id) {
         Check.projectIsPending(s_projectFromId[id].status == ProjectStatus.Pending, id);
         Check.projectHasStarted(s_projectFromId[id].startTime, id);
         Check.projectHasNotEnded(projectHasEnded(id), id);
+        uint256 tokenAmount = s_tokensOwedToContributor[id][msg.sender];
         Check.tokenAmountIsGreaterThanZero(tokenAmount);
         Check.userHasTokenBalance(IERC20(s_projectFromId[id].token).balanceOf(msg.sender), tokenAmount, id);
 
         uint256 oldSupply = s_projectFromId[id].initialTokenAmount - IERC20(s_projectFromId[id].token).balanceOf(address(this));
         uint256 ethAmount = calculateSellAmount(tokenAmount, oldSupply);
         Check.ethAmountIsNotLessThanExpected(ethAmount, expectedEthAmount);
-        
+
         s_projectFromId[id].raised -= ethAmount;
+        s_tokensOwedToContributor[id][msg.sender] = 0;
         IERC20(s_projectFromId[id].token).transferFrom(msg.sender, address(this), tokenAmount);
         sendEther(payable(msg.sender), ethAmount);
         emit UserLeftPendingProject(id, msg.sender, tokenAmount, calculatePrice(oldSupply));
@@ -167,17 +172,16 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         
         if (projectSuccessful(id)) {
             // Calculate successful-end fee (in ether)
-            uint256 successfulEndFeeAmount = s_projectFromId[id].raised * s_successfulEndFee / DECIMALS;
+            uint256 successfulEndFeeAmount = s_projectFromId[id].raised * i_successfulEndFee / DECIMALS;
             // Send ether as fee to project creator
             sendEther(payable(s_projectFromId[id].creator), successfulEndFeeAmount);
             // Reduce amount raised by project creator fee and fee collector fee
             uint256 amountRaisedAfterFees = s_projectFromId[id].raised - (2 * successfulEndFeeAmount);
             // Wrap ETH into WETH
-            // IWETH9(s_weth).approve()
-            IWETH9(s_weth).deposit{value: amountRaisedAfterFees}();
+            IWETH9(i_weth).deposit{value: amountRaisedAfterFees}();
             // Sort the tokens
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
-                _sortTokens(s_weth, s_projectFromId[id].token, amountRaisedAfterFees, getTotalTokensOwed(id));
+                _sortTokens(i_weth, s_projectFromId[id].token, amountRaisedAfterFees, getTotalTokensOwed(id));
             // Deploy the pool
             s_projectFromId[id].pool = _deployPool(s_projectFromId[id].poolType, token0, token1, amount0, amount1);
         } else {
