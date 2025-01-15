@@ -104,8 +104,9 @@ contract BondingCurvePresale is PoolDeployer, Presale {
     function buyTokens(uint256 id, uint256 tokenAmountToBuy, uint256 expectedEthAmount) public payable nonReentrant validId(id) {
         Check.projectIsPending(s_projectFromId[id].status == ProjectStatus.Pending, id);
         if (s_projectFromId[id].hasBeenInitialized == false) {
-            Check.projectHasStarted(s_projectFromId[id].startTime, id);
             s_projectFromId[id].hasBeenInitialized = true;
+        } else {
+            Check.projectHasStarted(s_projectFromId[id].startTime, id);
         }
         Check.projectHasNotEnded(projectHasEnded(id), id);
         Check.thereAreRemainingTokens(getRemainingTokens(id), id);
