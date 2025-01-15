@@ -76,7 +76,24 @@ contract HelperConfig is CodeConstants, Script {
     /*//////////////////////////////////////////////////////////////
                                 CONFIGS
     //////////////////////////////////////////////////////////////*/
+
     function getSepoliaEthConfig() public view returns (NetworkConfig memory) {
+        return NetworkConfig({
+            successfulEndFee: SUCCESSFUL_END_FEE,
+            feeCollector: address(uint160(vm.envUint("FEE_COLLECTOR"))), // address of the private key
+            creationFee: CREATION_FEE,
+            a: 0.001e18,
+            swapFee: 0.005e18,
+            minInitialEthAmount: 0.005e18,
+            priceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
+            uniFactory: 0x0227628f3F023bb0B980b67D528571c95c6DaC1c,
+            nonfungiblePositionManager: 0x1238536071E1c677A632429e3655c799b22cDA52,
+            weth: 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14,
+            deployerKey: vm.envUint("PRIVATE_KEY")
+        });
+    }
+
+    function getPolygonEthConfig() public view returns (NetworkConfig memory) {
         return NetworkConfig({
             successfulEndFee: SUCCESSFUL_END_FEE,
             feeCollector: address(uint160(vm.envUint("FEE_COLLECTOR"))), // address of the private key
