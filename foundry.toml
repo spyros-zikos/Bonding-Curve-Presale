@@ -7,8 +7,6 @@ remappings = [
     "@chainlink=lib/chainlink-brownie-contracts",
     "@uniswap/v3-core=lib/uniswap-v3-core",
     "@uniswap/v3-periphery=lib/uniswap-v3-periphery",
-    "@balancer/scaffold-balancer-v3=lib/scaffold-balancer-v3",
-    # "@balancer-labs=lib/balancer-v3-monorepo",
 ]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options

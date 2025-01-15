@@ -35,10 +35,6 @@ contract HelperConfig is CodeConstants, Script {
         address uniFactory;
         address nonfungiblePositionManager;
         address weth;
-        address balancerVault;
-        address balancerRouter;
-        address balancerPermit2;
-        address CPFactory;
         uint256 deployerKey;
     }
 
@@ -84,16 +80,12 @@ contract HelperConfig is CodeConstants, Script {
             uniFactory: 0x0227628f3F023bb0B980b67D528571c95c6DaC1c,
             nonfungiblePositionManager: 0x1238536071E1c677A632429e3655c799b22cDA52,
             weth: 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14,
-            balancerVault: 0x0EF1c156a7986F394d90eD1bEeA6483Cc435F542,
-            balancerRouter: 0xB12FcB422aAe6720f882E22C340964a7723f2387,
-            balancerPermit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3,
-            CPFactory: 0xD328B584235AB1623894F4B96B09738446b7943C,
             deployerKey: vm.envUint("PRIVATE_KEY")
         });
     }
 
     function getBaseSepoliaConfig() public view returns (NetworkConfig memory) {
-        // NOT CORRECT
+        // NOT CORRECT JUST PLACEHOLDER
         return NetworkConfig({
             creationFee: CREATION_FEE,
             successfulEndFee: SUCCESSFUL_END_FEE,
@@ -102,10 +94,6 @@ contract HelperConfig is CodeConstants, Script {
             uniFactory: 0x0227628f3F023bb0B980b67D528571c95c6DaC1c,
             nonfungiblePositionManager: 0x1238536071E1c677A632429e3655c799b22cDA52,
             weth: 0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14,
-            balancerVault: 0x0EF1c156a7986F394d90eD1bEeA6483Cc435F542,
-            balancerRouter: 0xB12FcB422aAe6720f882E22C340964a7723f2387,
-            balancerPermit2: 0x000000000022D473030F116dDEE9F6B43aC78BA3,
-            CPFactory: 0x000000000022D473030F116dDEE9F6B43aC78BA3,
             deployerKey: vm.envUint("PRIVATE_KEY")
         });
     }

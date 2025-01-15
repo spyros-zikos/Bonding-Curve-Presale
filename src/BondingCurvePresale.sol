@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IWETH9} from "./Uniswap/IWETH9.sol";
 import {ERC20Ownable} from "./ERC20Ownable.sol";
-import {PoolDeployer, PoolType} from "./utils/PoolDeployer.sol";
+import {PoolDeployer} from "./utils/PoolDeployer.sol";
 import {Presale, ProjectStatus} from "./utils/Presale.sol";
 import {Check} from "./lib/Check.sol";
 
@@ -19,7 +19,6 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         address creator;
         address[] contributors;
         ProjectStatus status;  // gets changed when endPresale is called
-        PoolType poolType;
         address pool;
         uint256 priceAfterFailure;
         bool creatorClaimedLockedTokens;
@@ -43,20 +42,12 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         address feeCollector,
         address uniFactory,
         address nonfungiblePositionManager,
-        address weth,
-        address balancerVault,
-        address balancerRouter,
-        address CPFactory,
-        address balancerPermit2
+        address weth
     ) 
         Presale(feeCollector, weth, successfulEndFee) 
         PoolDeployer(
             uniFactory,
-            nonfungiblePositionManager,
-            balancerVault,
-            balancerRouter,
-            CPFactory,
-            balancerPermit2
+            nonfungiblePositionManager
         )
     {}
 
@@ -69,7 +60,6 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         uint256 initialTokenAmount, // must be even number so that half goes to presale and half to pool
         uint256 startTime,
         uint256 endTime,
-        PoolType poolType,
         string memory name,
 		string memory symbol
     ) external nonReentrant {  // probably does not need nonReentrant but just in case
@@ -92,7 +82,6 @@ contract BondingCurvePresale is PoolDeployer, Presale {
             creator: msg.sender,
             contributors: contributors,
             status: ProjectStatus.Pending,
-            poolType: poolType,
             pool: address(0),
             priceAfterFailure: 0,
             creatorClaimedLockedTokens: false
@@ -183,7 +172,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
                 _sortTokens(i_weth, s_projectFromId[id].token, amountRaisedAfterFees, getTotalTokensOwed(id));
             // Deploy the pool
-            s_projectFromId[id].pool = _deployPool(s_projectFromId[id].poolType, token0, token1, amount0, amount1);
+            s_projectFromId[id].pool = _deployPool(token0, token1, amount0, amount1);
         } else {
             // Calculate price after failure
             s_projectFromId[id].priceAfterFailure = s_projectFromId[id].raised * DECIMALS / getTotalTokensOwed(id);

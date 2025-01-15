@@ -16,11 +16,7 @@ contract DeployBondingCurvePresale is Script {
             config.feeCollector,
             config.uniFactory,
             config.nonfungiblePositionManager,
-            config.weth,  // from uniswap
-            config.balancerVault,
-            config.balancerRouter,
-            config.CPFactory,
-            config.balancerPermit2
+            config.weth
         );
         vm.stopBroadcast();
         return (presale, helperConfig);

@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 import {IWETH9} from "./Uniswap/IWETH9.sol";
 import {Presale, ProjectStatus} from "./utils/Presale.sol";
-import {PoolDeployer, PoolType} from "./utils/PoolDeployer.sol";
+import {PoolDeployer} from "./utils/PoolDeployer.sol";
 import {Check} from "./lib/Check.sol";
 import {PriceConverter} from "./lib/PriceConverter.sol";
 
@@ -21,7 +21,6 @@ contract RegularPresale is Presale, PoolDeployer {
         address creator;
         address[] contributors;
         ProjectStatus status;  // gets changed when endPresale is called
-        PoolType poolType;
         address pool;
     }
 
@@ -53,20 +52,12 @@ contract RegularPresale is Presale, PoolDeployer {
         address priceFeed,
         address uniFactory,
         address nonfungiblePositionManager,
-        address weth,  // from uniswap
-        address balancerVault,
-        address balancerRouter,
-        address CPFactory,
-        address balancerPermit2
+        address weth
     ) 
         Presale(feeCollector, weth, successfulEndFee)
         PoolDeployer(
             uniFactory,
-            nonfungiblePositionManager,
-            balancerVault,
-            balancerRouter,
-            CPFactory,
-            balancerPermit2
+            nonfungiblePositionManager
         )
     {
         s_creationFee = creationFee;
@@ -81,8 +72,7 @@ contract RegularPresale is Presale, PoolDeployer {
         uint256 tokenPrice,
         uint256 initialTokenAmount, // must be even number so that half goes to presale and half to pool
         uint256 startTime,
-        uint256 endTime,
-        PoolType poolType
+        uint256 endTime
     ) external payable nonReentrant {  // probably does not need nonReentrant but just in case
         Check.tokenIsValid(token);
         Check.tokenPriceIsValid(tokenPrice);
@@ -108,7 +98,6 @@ contract RegularPresale is Presale, PoolDeployer {
             creator: msg.sender,
             contributors: contributors,
             status: ProjectStatus.Pending,
-            poolType: poolType,
             pool: address(0)
         });
         emit ProjectCreated(s_lastProjectId, token, tokenPrice, initialTokenAmount, startTime, endTime);
@@ -178,7 +167,7 @@ contract RegularPresale is Presale, PoolDeployer {
             (address token0, address token1, uint256 amount0, uint256 amount1) = 
                 _sortTokens(i_weth, s_projectFromId[id].token, amountRaisedAfterFees, getTotalTokensOwed(id));
             // Deploy the pool
-            s_projectFromId[id].pool = _deployPool(s_projectFromId[id].poolType, token0, token1, amount0, amount1);
+            s_projectFromId[id].pool = _deployPool(token0, token1, amount0, amount1);
         }
         // Send remaining/all (depending on project being successful/failed) tokens to project creator
         uint256 remainingTokens = IERC20(s_projectFromId[id].token).balanceOf(address(this));

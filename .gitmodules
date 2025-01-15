@@ -13,12 +13,6 @@
 [submodule "lib/uniswap-v3-periphery"]
 	path = lib/uniswap-v3-periphery
 	url = https://github.com/Uniswap/v3-periphery
-[submodule "lib/scaffold-balancer-v3"]
-	path = lib/scaffold-balancer-v3
-	url = https://github.com/balancer/scaffold-balancer-v3
-[submodule "lib/balancer-v3-monorepo"]
-	path = lib/balancer-v3-monorepo
-	url = https://github.com/balancer/balancer-v3-monorepo
 [submodule "lib/permit2"]
 	path = lib/permit2
 	url = https://github.com/Uniswap/permit2

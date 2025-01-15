@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Test, console} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {DeployERC20Ownable} from "../script/DeployERC20Ownable.s.sol";
-import {RegularPresale, PoolType, ProjectStatus} from "../src/RegularPresale.sol";
+import {RegularPresale, ProjectStatus} from "../src/RegularPresale.sol";
 import {DeployRegularPresale} from "../script/DeployRegularPresale.s.sol";
 import {PriceConverter} from "../src/lib/PriceConverter.sol";
 import {HelperConfig} from "../script/HelperConfig.s.sol";
@@ -62,8 +62,7 @@ contract RegularPresaleTest is Test {
             PRICE_PER_TOKEN,
             INITIAL_SUPPLY, // supply
             START_TIME,
-            START_TIME + 1000,
-            PoolType.Uniswap  // Uniswap
+            START_TIME + 1000
         );
         console.log("presale created");
         vm.stopPrank();
@@ -111,8 +110,7 @@ contract RegularPresaleTest is Test {
             PRICE_PER_TOKEN,
             INITIAL_SUPPLY,
             START_TIME,
-            START_TIME + 1000,
-            PoolType.Uniswap
+            START_TIME + 1000
         );
         console.log("presale created");
         vm.stopPrank();

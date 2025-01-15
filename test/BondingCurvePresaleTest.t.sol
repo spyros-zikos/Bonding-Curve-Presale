@@ -3,7 +3,7 @@ pragma solidity ^0.8.24;
 
 import {Test, console} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {BondingCurvePresale, PoolType, ProjectStatus} from "../src/BondingCurvePresale.sol";
+import {BondingCurvePresale, ProjectStatus} from "../src/BondingCurvePresale.sol";
 import {DeployBondingCurvePresale} from "../script/DeployBondingCurvePresale.s.sol";
 import {HelperConfig} from "../script/HelperConfig.s.sol";
 
@@ -50,7 +50,6 @@ contract BondingCurvePresaleTest is Test {
             INITIAL_SUPPLY, // initial supply/amount
             START_TIME,
             START_TIME + 1000,
-            PoolType.Uniswap,  // Uniswap
             "token name",
             "token symbol"
         );
@@ -102,7 +101,6 @@ contract BondingCurvePresaleTest is Test {
             INITIAL_SUPPLY, // initial supply/amount
             START_TIME,
             START_TIME + 1000,
-            PoolType.Balancer, 
             "token name",
             "token symbol"
         );
