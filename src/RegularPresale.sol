@@ -227,6 +227,10 @@ contract RegularPresale is Presale, PoolDeployer {
         return false;
     }
 
+    function marketCap(uint256 id) public view returns (uint256) {
+        return getTotalTokensOwed(id) * s_projectFromId[id].price / DECIMALS;
+    }
+
     ////////////////// Private //////////////////////////
 
     function _updateProjectStatus(uint256 id) private {

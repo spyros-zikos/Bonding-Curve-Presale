@@ -44,7 +44,7 @@ deployERC20:
 	@forge script script/DeployERC20Ownable.s.sol:DeployERC20Ownable --via-ir $(NETWORK_ARGS)
 
 deployBondingCurve:
-	@forge script script/DeployBondingCurvePresale.s.sol:DeployBondingCurvePresale --optimize --optimizer-runs 50 --via-ir $(NETWORK_ARGS)
+	@forge script script/DeployBondingCurvePresale.s.sol:DeployBondingCurvePresale --via-ir $(NETWORK_ARGS)
 
 # cast send 0x8Bcb23452001B402f293CA17F3F18FEc11692358 "createPresale(uint256,uint256,uint256,uint8,string,string)" 10000000000000000000 1732981605 1732982905 0 sdf sdf  --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY
 # cast call 0x8Bcb23452001B402f293CA17F3F18FEc11692358 "getBCPProject(uint256)" 1 --rpc-url $SEPOLIA_RPC_URL --private-key $PRIVATE_KEY

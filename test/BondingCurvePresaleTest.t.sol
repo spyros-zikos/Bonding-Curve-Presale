@@ -13,14 +13,18 @@ contract BondingCurvePresaleTest is Test {
     HelperConfig.NetworkConfig config;
 
     uint256 START_TIME = 1e5;
-    uint256 INVESTOR1_INITIAL_BALANCE = 0.01e18;
-    uint256 INVESTOR2_INITIAL_BALANCE = 0.01e18;
-    uint256 INVESTOR3_INITIAL_BALANCE = 0.5e18;
-    uint256 INVESTOR1_JOIN_AMOUNT = 0.01e18;
-    uint256 INVESTOR2_JOIN_AMOUNT = 0.01e18;
-    uint256 INVESTOR3_JOIN_AMOUNT = 0.5e18;
-    uint256 PRICE_PER_TOKEN = 1e18;
-    uint256 INITIAL_SUPPLY = 100e18;
+    uint256 INVESTOR1_INITIAL_BALANCE = 31e18;
+    uint256 INVESTOR2_INITIAL_BALANCE = 51e18;
+    uint256 INVESTOR3_INITIAL_BALANCE = 4001e18;
+    uint256 CREATOR_INITIAL_BALANCE = 6e18;
+    uint256 INVESTOR1_ETH_AMOUNT = 30e18;
+    uint256 INVESTOR2_ETH_AMOUNT = 50e18;
+    uint256 INVESTOR3_ETH_AMOUNT = 4000e18;
+    uint256 CREATOR_ETH_AMOUNT = 5e18;
+    uint256 INVESTOR1_TOKEN_BUY_AMOUNT = 100e18;
+    uint256 INVESTOR2_TOKEN_BUY_AMOUNT = 100e18;
+    uint256 INVESTOR3_TOKEN_BUY_AMOUNT = 400e18;
+    uint256 INITIAL_SUPPLY = 4000e18;
 
     address feeCollector = address(uint160(vm.envUint("FEE_COLLECTOR")));
     address projectCreator = address(uint160(vm.envUint("PROJECT_CREATOR_ADDRESS")));
@@ -36,17 +40,18 @@ contract BondingCurvePresaleTest is Test {
         config = helperConfig.getConfig();
 
         vm.deal(investor1, INVESTOR1_INITIAL_BALANCE);
-        vm.deal(investor3, INVESTOR3_INITIAL_BALANCE);
         vm.deal(investor2, INVESTOR2_INITIAL_BALANCE);
+        vm.deal(investor3, INVESTOR3_INITIAL_BALANCE);
+        vm.deal(projectCreator, CREATOR_INITIAL_BALANCE);
         vm.warp(START_TIME);
     }
 
     function testBondingCurvePresaleFailure() public {
-        uint256 id = 1; // project id
+        uint256 id = 1; // project i
         
         // Project creator creates presale
         vm.startPrank(projectCreator);
-        presale.createPresale(
+        presale.createPresale{value: CREATOR_ETH_AMOUNT}(
             INITIAL_SUPPLY, // initial supply/amount
             START_TIME,
             START_TIME + 1000,
@@ -58,21 +63,23 @@ contract BondingCurvePresaleTest is Test {
         IERC20 token = IERC20(presale.getBCPProject(id).token);
         
         console.log("--- investor1 joined presale ---");
-        _investorJoinsPresale(START_TIME + 100, investor1, INVESTOR1_JOIN_AMOUNT, id, token);
+        _investorBuysTokens(START_TIME + 100, investor1, INVESTOR1_ETH_AMOUNT, INVESTOR1_TOKEN_BUY_AMOUNT, id, token);
         
         console.log("--- investor2 joined presale ---");
-        _investorJoinsPresale(START_TIME + 101, investor2, INVESTOR2_JOIN_AMOUNT, id, token);
+        _investorBuysTokens(START_TIME + 101, investor2, INVESTOR2_ETH_AMOUNT, INVESTOR2_TOKEN_BUY_AMOUNT, id, token);
+        
+        console.log("getSupply: ", presale.getSupply(id));
+        console.log("getSoftCap: ", presale.getSoftCap(id));
+
 
         _feeCollectorEndsPresale(START_TIME + 1001, id);
         console.log("presale fail price: ", presale.getBCPProject(id).priceAfterFailure);
 
         // // Check if project indeed failed
-        // assert(presale.getTotalTokensOwed(id) == INVESTOR1_JOIN_AMOUNT + INVESTOR2_JOIN_AMOUNT);
+        // assert(presale.getSupply(id) == INVESTOR1_ETH_AMOUNT + INVESTOR2_ETH_AMOUNT);
         // assert(presale.getSoftCap(id) == (INITIAL_SUPPLY / 2) * 3 / 10);
-        assert(presale.getBCPProject(id).status == ProjectStatus.Failed);
+        assertEq(uint8(presale.getBCPProject(id).status), uint8(ProjectStatus.Failed), "Presale Not Failed");
 
-        uint256 investor1EthBalanceBeforeExit = investor1.balance;
-        assert(investor1EthBalanceBeforeExit == 0);
         vm.startPrank(investor1);
         token.approve(address(presale), type(uint256).max);
         vm.warp(START_TIME + 1002);
@@ -81,8 +88,6 @@ contract BondingCurvePresaleTest is Test {
         console.log("investor1 left failed presale");
         console.log("investor1 balance: ", investor1.balance);
 
-        uint256 investor2EthBalanceBeforeExit = investor2.balance;
-        assert(investor2EthBalanceBeforeExit == 0);
         vm.startPrank(investor2);
         token.approve(address(presale), type(uint256).max);
         vm.warp(START_TIME + 1003);
@@ -97,7 +102,7 @@ contract BondingCurvePresaleTest is Test {
 
         // Project creator creates presale
         vm.startPrank(projectCreator);
-        presale.createPresale(
+        presale.createPresale{value: CREATOR_ETH_AMOUNT}(
             INITIAL_SUPPLY, // initial supply/amount
             START_TIME,
             START_TIME + 1000,
@@ -109,25 +114,25 @@ contract BondingCurvePresaleTest is Test {
         IERC20 token = IERC20(presale.getBCPProject(id).token);
 
         console.log("--- investor1 joined presale ---");
-        _investorJoinsPresale(START_TIME + 100, investor1, INVESTOR1_JOIN_AMOUNT, id, token);
+        _investorBuysTokens(START_TIME + 100, investor1, INVESTOR1_ETH_AMOUNT, INVESTOR1_TOKEN_BUY_AMOUNT, id, token);
         
         console.log("--- investor2 joined presale ---");
-        _investorJoinsPresale(START_TIME + 101, investor2, INVESTOR2_JOIN_AMOUNT, id, token);
+        _investorBuysTokens(START_TIME + 101, investor2, INVESTOR2_ETH_AMOUNT, INVESTOR2_TOKEN_BUY_AMOUNT, id, token);
         
         console.log("--- investor3 joined presale ---");
-        _investorJoinsPresale(START_TIME + 101, investor3, INVESTOR3_JOIN_AMOUNT, id, token);
+        _investorBuysTokens(START_TIME + 101, investor3, INVESTOR3_ETH_AMOUNT, INVESTOR3_TOKEN_BUY_AMOUNT, id, token);
 
         // ##################################################
         console.log("--- investor1 leaves presale ---");
-        _investorLeavesPresale(START_TIME + 101, investor1, id, token);
+        _investorSellsTokens(START_TIME + 101, investor1, INVESTOR1_TOKEN_BUY_AMOUNT/5, id, token);
         // ##################################################
 
         _feeCollectorEndsPresale(START_TIME + 1001, id);
 
         // Check if project succeded
-        assert(presale.getBCPProject(id).status == ProjectStatus.Success);
+        assertEq(uint8(presale.getBCPProject(id).status), uint8(ProjectStatus.Success), "Presale Not Successful");
 
-        // // Reverts
+        // Reverts
         vm.startPrank(investor1);
         token.approve(address(presale), type(uint256).max);
         vm.warp(START_TIME + 1002);
@@ -146,25 +151,25 @@ contract BondingCurvePresaleTest is Test {
 
     //////////////////// HELPER FUNCTIONS ////////////////////
 
-    function _investorJoinsPresale(uint256 time, address investor, uint256 amount, uint256 id, IERC20 token) private {
+    function _investorBuysTokens(uint256 time, address investor, uint256 ethAmount, uint256 tokenAmount, uint256 id, IERC20 token) private {
         vm.warp(time);
         vm.prank(investor);
-        presale.joinProjectPresale{value: amount}(id, 0);
-        console.log("total tokens owed: ", presale.getTotalTokensOwed(id));
+        presale.buyTokens{value: ethAmount}(id, tokenAmount, 0);
+        console.log("total tokens owed: ", presale.getSupply(id));
         console.log("investor token balance: ", token.balanceOf(investor));
-        console.log("price: ", presale.calculatePrice(presale.getTotalTokensOwed(id)));
+        console.log("price: ", presale.priceToChangeTokenSupply(presale.getSupply(id), presale.getSupply(id) + 1e18));
     }
 
-    function _investorLeavesPresale(uint256 time, address investor,uint256 id, IERC20 token) private {
+    function _investorSellsTokens(uint256 time, address investor, uint256 tokenAmount, uint256 id, IERC20 token) private {
         vm.warp(time);
         vm.prank(investor);
         token.approve(address(presale), type(uint256).max);
         vm.prank(investor);
-        presale.leaveOngoingProjectPresale(id, 0);
-        console.log("total tokens owed: ", presale.getTotalTokensOwed(id));
+        presale.sellTokens(id, tokenAmount, 0);
+        console.log("total tokens owed: ", presale.getSupply(id));
         console.log("investor token balance: ", token.balanceOf(investor));
         console.log("investor eth balance: ", investor.balance);
-        console.log("price: ", presale.calculatePrice(presale.getTotalTokensOwed(id)));
+        console.log("price: ", presale.priceToChangeTokenSupply(presale.getSupply(id), presale.getSupply(id) + 1e18));
     }
 
     function _feeCollectorEndsPresale(uint256 time, uint256 id) private {

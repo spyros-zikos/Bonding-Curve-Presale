@@ -29,13 +29,13 @@ contract Presale is Ownable, ReentrancyGuard {
         address weth,
         uint256 successfulEndFee
     // fee collector is also the owner in the beginning
-    ) Ownable(feeCollector) {
+    ) Ownable(msg.sender) {
         s_feeCollector = feeCollector;
         i_weth = weth;
         i_successfulEndFee = successfulEndFee;
     }
 
-    function withdrawFunds() external onlyOwner {
+    function withdrawFunds() external {
         require(address(this).balance > 0, "No funds to withdraw");
         payable(s_feeCollector).transfer(address(this).balance);
     }

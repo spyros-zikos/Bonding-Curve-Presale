@@ -9,12 +9,14 @@ error StartTimeMustBeInFuture(uint256 startTime, uint256 currentTime);
 error EndTimeMustBeAfterStartTime(uint256 startTime, uint256 endTime);
 error IncorrectCreationFee(uint256 feePaid, uint256 actualFee);
 error InitialTokenAmountMustBeEven(uint256 initialTokenAmount);
+error EthAmountLessThanMinimum(uint256 ethAmount, uint256 minInitialEthAmount);
 
 error ProjectIsNotPending(uint256 id);
 error ProjectHasNotStarted(uint256 id);
 error NoMoreTokensToGive(uint256 id);
 error ProjectHasEnded(uint256 id);
-error TokenAmountLessThanExpected(uint256 tokenAmount, uint256 expectedTokenAmount);
+error EthAmountMoreThanExpected(uint256 ethAmount, uint256 expectedEthAmount);
+error EthAmountLessThanRequired(uint256 ethAmountSent, uint256 requiredEthAmount);
 
 error ProjectHasNotFailed(uint256 id);
 error UserHasNotContributed(uint256 id, address contributor);
@@ -23,7 +25,7 @@ error EthAmountLessThanExpected(uint256 ethAmount, uint256 expectedEthAmount);
 
 error EtherTransferFailed(address to, uint256 value);
 error MsgValueIsZero();
-error UserHasNoTokenBalance(uint256 balance, uint256 tokenAmount, uint256 id);
+error NotEnoughTokenBalance(uint256 balance, uint256 tokenAmount, uint256 id);
 error TokenAmountIsZero();
 error UserIsNotProjectCreator();
 error ProjectHasNotEndedSuccessfully(uint256 id);
@@ -142,10 +144,10 @@ library Check {
         }
     }
 
-    function userHasTokenBalance(uint256 balance, uint256 tokenAmount, uint256 id) internal pure {
-        // Check if user has token balance
+    function userHasEnoughTokenBalance(uint256 balance, uint256 tokenAmount, uint256 id) internal pure {
+        // Check if user has enough token balance
         if (balance < tokenAmount) {
-            revert UserHasNoTokenBalance(balance, tokenAmount, id);
+            revert NotEnoughTokenBalance(balance, tokenAmount, id);
         }
     }
 
@@ -184,17 +186,31 @@ library Check {
         }
     }
 
-    function tokenAmountIsNotLessThanExpected(uint256 tokenAmount, uint256 expectedTokenAmount) internal pure {
-        // Check if token amount is not less than expected
-        if (tokenAmount < expectedTokenAmount) {
-            revert TokenAmountLessThanExpected(expectedTokenAmount, tokenAmount);
+    function enoughEthSent(uint256 ethAmountSent, uint256 requiredEthAmount) internal pure {
+        // Check if eth sent is enough
+        if (ethAmountSent < requiredEthAmount) {
+            revert EthAmountLessThanRequired(requiredEthAmount, ethAmountSent);
+        }
+    }
+
+    function ethAmountIsNotMoreThanExpected(uint256 ethAmount, uint256 expectedEthAmount) internal pure {
+        // Check if eth amount is not more than expected
+        if (ethAmount > expectedEthAmount) {
+            revert EthAmountMoreThanExpected(ethAmount, expectedEthAmount);
         }
     }
 
     function ethAmountIsNotLessThanExpected(uint256 ethAmount, uint256 expectedEthAmount) internal pure {
         // Check if eth amount is not less than expected
         if (ethAmount < expectedEthAmount) {
-            revert EthAmountLessThanExpected(expectedEthAmount, ethAmount);
+            revert EthAmountLessThanExpected(ethAmount, expectedEthAmount);
+        }
+    }
+
+    function MinimumInitialEthAmountPaid(uint256 ethAmount, uint256 minInitialEthAmount) internal pure {
+        // Check if eth amount is not less than minimum
+        if (ethAmount < minInitialEthAmount) {
+            revert EthAmountLessThanMinimum(ethAmount, minInitialEthAmount);
         }
     }
 }
