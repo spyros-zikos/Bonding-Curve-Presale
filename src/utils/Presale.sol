@@ -15,14 +15,13 @@ enum ProjectStatus {
 
 contract Presale is Ownable, ReentrancyGuard {
     uint256 internal constant DECIMALS = 1e18;
-    uint256 internal constant SOFTCAP_PERCENTAGE = 30e16;  // 30%
-    address internal s_feeCollector;
+    address internal immutable i_weth;
     // i_successfulEndFee is a percentage, e.g. 5e16 = 5%.
     // The presale creator and the fee collector get amount raised * i_successfulEndFee / DECIMALS
     uint256 internal immutable i_successfulEndFee;
-    address internal immutable i_weth;
+    uint256 internal s_softcapPercentage = 30e16;  // 30%
+    address internal s_feeCollector;
     uint256 internal s_lastProjectId; // starts from 1
-    mapping (uint256 id => mapping(address contributor => uint256 tokenAmount)) internal s_tokensOwedToContributor;
 
     constructor(
         address feeCollector,
@@ -48,6 +47,34 @@ contract Presale is Ownable, ReentrancyGuard {
         // Call returns a boolean value indicating success or failure.
         (bool sent,) = to.call{value: value}("");
         Check.etherTransferSuccess(sent, to, value);
+    }
+
+    function setSoftcapPercentage(uint256 softcapPercentage) external onlyOwner {
+        s_softcapPercentage = softcapPercentage;
+    }
+
+    /*//////////////////////////////////////////////////////////////
+                                GETTERS
+    //////////////////////////////////////////////////////////////*/
+
+    function getWeth() external view returns (address) {
+        return i_weth;
+    }
+
+    function getSuccessfulEndFee() external view returns (uint256) {
+        return i_successfulEndFee;
+    }
+
+    function getSoftcapPercentage() external view returns (uint256) {
+        return s_softcapPercentage;
+    }
+
+    function getFeeCollector() external view returns (address) {
+        return s_feeCollector;
+    }
+
+    function getLastProjectId() external view returns (uint256) {
+        return s_lastProjectId;
     }
 }
 

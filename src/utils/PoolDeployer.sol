@@ -37,5 +37,9 @@ contract PoolDeployer is UniswapPoolDeployer {
             ? (token0, token1, tokenAmount0, tokenAmount1)
             : (token1, token0, tokenAmount1, tokenAmount0);
     }
+
+    function getUniswapSwapFee() external pure returns (uint24) {
+        return UNISWAP_SWAP_FEE;
+    }
 }
 

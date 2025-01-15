@@ -27,6 +27,8 @@ contract RegularPresale is Presale, PoolDeployer {
     uint256 private s_creationFee;
     AggregatorV3Interface private s_priceFeed;
     mapping (uint256 id => Project project) private s_projectFromId;
+    mapping (uint256 id => mapping(address contributor => uint256 tokenAmount)) internal s_tokensOwedToContributor;
+
 
     event ProjectCreated(
         uint256 lastProjectId,
@@ -176,6 +178,10 @@ contract RegularPresale is Presale, PoolDeployer {
         }
     }
 
+    /*//////////////////////////////////////////////////////////////
+                                GETTERS
+    //////////////////////////////////////////////////////////////*/
+
     function getRPProject(uint256 id) external view returns (Project memory) {
         return s_projectFromId[id];
     }
@@ -184,10 +190,18 @@ contract RegularPresale is Presale, PoolDeployer {
         return s_tokensOwedToContributor[id][contributor];
     }
 
+    function getCreationFee() external view returns (uint256) {
+        return s_creationFee;
+    }
+
+    function getPriceFeed() external view returns (AggregatorV3Interface) {
+        return s_priceFeed;
+    }
+
     ////////////////// Public //////////////////////////
 
     function getSoftCap(uint256 id) public view returns (uint256) {
-        return getMaxPresaleTokenAmount(id) * SOFTCAP_PERCENTAGE / DECIMALS;
+        return getMaxPresaleTokenAmount(id) * s_softcapPercentage / DECIMALS;
     }
 
     function getTotalTokensOwed(uint256 id) public view returns (uint256) {

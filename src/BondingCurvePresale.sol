@@ -23,6 +23,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         ProjectStatus status;  // gets changed when endPresale is called
         address pool;
         uint256 priceAfterFailure;
+        bool hasBeenInitialized;
     }
 
     mapping (uint256 id => Project project) private s_projectFromId;
@@ -91,7 +92,8 @@ contract BondingCurvePresale is PoolDeployer, Presale {
             contributors: contributors,
             status: ProjectStatus.Pending,
             pool: address(0),
-            priceAfterFailure: 0
+            priceAfterFailure: 0,
+            hasBeenInitialized: false
         });
         emit ProjectCreated(s_lastProjectId, address(token), initialTokenAmount, startTime, endTime);
 
@@ -101,7 +103,10 @@ contract BondingCurvePresale is PoolDeployer, Presale {
     
     function buyTokens(uint256 id, uint256 tokenAmountToBuy, uint256 expectedEthAmount) public payable nonReentrant validId(id) {
         Check.projectIsPending(s_projectFromId[id].status == ProjectStatus.Pending, id);
-        Check.projectHasStarted(s_projectFromId[id].startTime, id);
+        if (s_projectFromId[id].hasBeenInitialized == false) {
+            Check.projectHasStarted(s_projectFromId[id].startTime, id);
+            s_projectFromId[id].hasBeenInitialized = true;
+        }
         Check.projectHasNotEnded(projectHasEnded(id), id);
         Check.thereAreRemainingTokens(getRemainingTokens(id), id);
         Check.msgValueIsGreaterThanZero();
@@ -124,7 +129,6 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         if (!contributorExists(id, msg.sender)) {
             s_projectFromId[id].contributors.push(msg.sender);
         }
-        s_tokensOwedToContributor[id][msg.sender] += tokenAmount;
         uint256 ethNotUsed = msg.value > requiredEthAmount ? msg.value - requiredEthAmount : 0;
         s_projectFromId[id].raised += (msg.value - ethNotUsed);
         sendEther(payable(msg.sender), ethNotUsed);
@@ -148,7 +152,6 @@ contract BondingCurvePresale is PoolDeployer, Presale {
             Check.ethAmountIsNotLessThanExpected(ethAmount, expectedEthAmount);
 
         s_projectFromId[id].raised -= ethAmount;
-        s_tokensOwedToContributor[id][msg.sender] -= tokenAmountToSell;
         IERC20(s_projectFromId[id].token).transferFrom(msg.sender, address(this), tokenAmountToSell);
         sendEther(payable(msg.sender), ethAmount);
         emit UserSoldTokens(id, msg.sender, tokenAmountToSell, ethAmount);
@@ -208,17 +211,27 @@ contract BondingCurvePresale is PoolDeployer, Presale {
                                 GETTERS
     //////////////////////////////////////////////////////////////*/
 
-    /// External ///
-
     // Get Bonding Curve Presale Project
     function getBCPProject(uint256 id) external view returns (Project memory) {
         return s_projectFromId[id];
     }
 
+    function getLinearCurveSlope() external view returns (uint256) {
+        return i_a;
+    }
+
+    function getMinInitialEthAmount() external view returns (uint256) {
+        return i_minInitialEthAmount;
+    }
+
+    function getSwapFee() external view returns (uint256) {
+        return s_swapFee;
+    }
+
     /// Public ///
 
     function getSoftCap(uint256 id) public view returns (uint256) {
-        return getMaxPresaleTokenAmount(id) * SOFTCAP_PERCENTAGE / DECIMALS;
+        return getMaxPresaleTokenAmount(id) * s_softcapPercentage / DECIMALS;
     }
 
     function getRemainingTokens(uint256 id) public view returns (uint256) {
