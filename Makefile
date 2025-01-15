@@ -43,9 +43,6 @@ deployRegular:
 deployERC20:
 	@forge script script/DeployERC20Ownable.s.sol:DeployERC20Ownable --via-ir $(NETWORK_ARGS)
 
-deployCPFactory:
-	@forge script script/DeployConstantProductFactory.s.sol:DeployConstantProductFactory --via-ir $(NETWORK_ARGS)
-
 deployBondingCurve:
 	@forge script script/DeployBondingCurvePresale.s.sol:DeployBondingCurvePresale --optimize --optimizer-runs 50 --via-ir $(NETWORK_ARGS)
 
