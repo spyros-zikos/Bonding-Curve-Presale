@@ -4,7 +4,7 @@ pragma solidity ^0.8.24;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Check} from "../lib/Check.sol";
-
+import {console} from "forge-std/console.sol";
 
 enum ProjectStatus {
     Pending,
@@ -32,11 +32,6 @@ contract Presale is Ownable, ReentrancyGuard {
         s_feeCollector = feeCollector;
         i_weth = weth;
         i_successfulEndFee = successfulEndFee;
-    }
-
-    function withdrawFunds() external {
-        require(address(this).balance > 0, "No funds to withdraw");
-        payable(s_feeCollector).transfer(address(this).balance);
     }
 
     function changeFeeCollector(address newFeeCollector) external onlyOwner {

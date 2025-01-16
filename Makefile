@@ -23,7 +23,7 @@ update:; forge update
 
 build:; forge build --via-ir
 
-test :; @forge test --fork-url $(SEPOLIA_RPC_URL) --via-ir
+test :; @forge test --fork-url $(SEPOLIA_RPC_URL) -vv
 
 # snapshot :; forge snapshot
 

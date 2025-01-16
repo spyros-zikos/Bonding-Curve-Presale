@@ -41,6 +41,8 @@ contract RegularPresale is Presale, PoolDeployer {
     event UserJoinedProject(uint256 id, address contributor, uint256 tokenAmount);
     event UserLeftProject(uint256 id, address contributor, uint256 etherToGiveBack);
     event ProjectStatusUpdated(uint256 id, ProjectStatus status);
+    event TokensSentToCreator(uint256 id, address creator, uint256 remainingTokens);
+    event UserClaimedTokens(uint256 id, address contributor, uint256 tokensToGive);
 
     modifier validId(uint256 id) {
         Check.validId(id, s_lastProjectId);
@@ -144,25 +146,23 @@ contract RegularPresale is Presale, PoolDeployer {
         Check.projectIsPending(s_projectFromId[id].status == ProjectStatus.Pending, id);
         Check.projectHasEnded(projectHasEnded(id), id);
 
-        // Update project status
         _updateProjectStatus(id);
         
         if (projectSuccessful(id)) {
-            // Distribute tokens to contributors
-            uint256 contributorsLength = s_projectFromId[id].contributors.length;
-            for (uint256 i = 0; i < contributorsLength; i++) {
-                address contributor = s_projectFromId[id].contributors[i];
-                uint256 tokensToGive = s_tokensOwedToContributor[id][contributor];
-                IERC20(s_projectFromId[id].token).transfer(contributor, tokensToGive);
-            }
+            // // Distribute tokens to contributors
+            // uint256 contributorsLength = s_projectFromId[id].contributors.length;
+            // for (uint256 i = 0; i < contributorsLength; i++) {
+            //     address contributor = s_projectFromId[id].contributors[i];
+            //     uint256 tokensToGive = s_tokensOwedToContributor[id][contributor];
+            //     IERC20(s_projectFromId[id].token).transfer(contributor, tokensToGive);
+            // }
+
             // Calculate successful-end fee (in ether)
             uint256 successfulEndFeeAmount = s_projectFromId[id].raised * i_successfulEndFee / DECIMALS;
-            // Send ether as fee to project creator
-            sendEther(payable(s_projectFromId[id].creator), successfulEndFeeAmount);
-            // Reduce amount raised by 2*successfulEndFeeAmount
-            // so that successfulEndFeeAmount is sent to creator
-            // and successfulEndFeeAmount remains in the contract for the fee collector to collct
-            uint256 amountRaisedAfterFees = s_projectFromId[id].raised - (2 * successfulEndFeeAmount);
+            // Transfer fee to fee collector
+            sendEther(payable(s_feeCollector), successfulEndFeeAmount);
+            uint256 amountRaisedAfterFees = s_projectFromId[id].raised - successfulEndFeeAmount;
+
             // Wrap ETH into WETH
             IWETH9(i_weth).deposit{value: amountRaisedAfterFees}();
             // Sort the tokens
@@ -172,10 +172,20 @@ contract RegularPresale is Presale, PoolDeployer {
             s_projectFromId[id].pool = _deployPool(token0, token1, amount0, amount1);
         }
         // Send remaining/all (depending on project being successful/failed) tokens to project creator
-        uint256 remainingTokens = IERC20(s_projectFromId[id].token).balanceOf(address(this));
+        uint256 remainingTokens = IERC20(s_projectFromId[id].token).balanceOf(address(this)) - getTotalTokensOwed(id);
         if (remainingTokens > 0) {
             IERC20(s_projectFromId[id].token).transfer(s_projectFromId[id].creator, remainingTokens);
+            emit TokensSentToCreator(id, s_projectFromId[id].creator, remainingTokens);
         }
+    }
+
+    function claimTokensAfterSuccessfulPresale(uint256 id) external nonReentrant validId(id) {
+        Check.userHasContributed(contributorExists(id, msg.sender), id, msg.sender);
+
+        uint256 tokensToGive = s_tokensOwedToContributor[id][msg.sender];
+        s_tokensOwedToContributor[id][msg.sender] = 0;
+        IERC20(s_projectFromId[id].token).transfer(msg.sender, tokensToGive);
+        emit UserClaimedTokens(id, msg.sender, tokensToGive);
     }
 
     /*//////////////////////////////////////////////////////////////
@@ -234,11 +244,7 @@ contract RegularPresale is Presale, PoolDeployer {
     }
 
     function contributorExists(uint256 id, address contributor) public view returns(bool) {
-        uint256 amount = s_tokensOwedToContributor[id][contributor];
-        if (amount > 0) {
-            return true;
-        }
-        return false;
+        return s_tokensOwedToContributor[id][contributor] > 0 ? true : false;
     }
 
     function marketCap(uint256 id) public view returns (uint256) {

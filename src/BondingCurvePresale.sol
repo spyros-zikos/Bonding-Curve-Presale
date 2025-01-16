@@ -14,7 +14,6 @@ contract BondingCurvePresale is PoolDeployer, Presale {
 
     struct Project {
         address token;
-        uint256 initialTokenAmount;
         uint256 raised; // in ETH
         uint256 startTime;
         uint256 endTime;
@@ -27,11 +26,12 @@ contract BondingCurvePresale is PoolDeployer, Presale {
     }
 
     mapping (uint256 id => Project project) private s_projectFromId;
-    uint256 private i_a; // slope of the bonding curve
-    uint256 private i_minInitialEthAmount;
+    uint256 private immutable i_a; // slope of the bonding curve
+    uint256 private immutable i_minInitialEthAmount;
     uint256 private s_swapFee;
+    uint256 private s_maxSupply;
 
-    event ProjectCreated(uint256 id, address token, uint256 initialTokenAmount, uint256 startTime, uint256 endTime);
+    event ProjectCreated(uint256 id, address token, uint256 totalSupply, uint256 startTime, uint256 endTime);
     event UserBoughtTokens(uint256 id, address contributor, uint256 tokenAmount, uint256 ethPaid);
     event UserSoldTokens(uint256 id, address contributor, uint256 tokenAmount, uint256 ethReceived);
     event UserLeftUnsuccessfulProject(uint256 id, address contributor, uint256 etherToGiveBack);
@@ -43,6 +43,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         uint256 a,
         uint256 minInitialEthAmount,
         uint256 swapFee,
+        uint256 maxSupply,
         address uniFactory,
         address nonfungiblePositionManager,
         address weth
@@ -56,6 +57,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         i_a = a;
         i_minInitialEthAmount = minInitialEthAmount;
         s_swapFee = swapFee;
+        s_maxSupply = maxSupply;
     }
 
     modifier validId(uint256 id) {
@@ -64,7 +66,6 @@ contract BondingCurvePresale is PoolDeployer, Presale {
     }
 
     function createPresale(
-        uint256 initialTokenAmount, // must be even number so that half goes to presale and half to pool
         uint256 startTime,
         uint256 endTime,
         string memory name,
@@ -72,19 +73,19 @@ contract BondingCurvePresale is PoolDeployer, Presale {
     ) external payable {
         Check.startTimeIsInTheFuture(startTime);
         Check.endTimeIsAfterStartTime(startTime, endTime);
-        Check.initialTokenAmountIsEven(initialTokenAmount);
+        // max supply must be an even number so that half goes to presale and half to pool
+        Check.maxSupplyIsEvenNumber(s_maxSupply);
         Check.msgValueIsGreaterThanZero();
         Check.MinimumInitialEthAmountPaid(msg.value, i_minInitialEthAmount);
 
         // Create token supply
         ERC20Ownable token = new ERC20Ownable(name, symbol);
-        token.mint(address(this), initialTokenAmount);
+        token.mint(address(this), s_maxSupply);
         // Create project
         s_lastProjectId += 1;
         address[] memory contributors;
         s_projectFromId[s_lastProjectId] = Project({
             token: address(token),
-            initialTokenAmount: initialTokenAmount,
             raised: 0,
             startTime: startTime,
             endTime: endTime,
@@ -95,7 +96,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
             priceAfterFailure: 0,
             hasBeenInitialized: false
         });
-        emit ProjectCreated(s_lastProjectId, address(token), initialTokenAmount, startTime, endTime);
+        emit ProjectCreated(s_lastProjectId, address(token), s_maxSupply, startTime, endTime);
 
         uint256 tokensToBuy = estimateTokensFromInitialPrice(msg.value * (1e18 - s_swapFee) / DECIMALS);
         buyTokens(s_lastProjectId, tokensToBuy, 0);
@@ -120,6 +121,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
 
         uint256 oldSupply = getSupply(id);
         uint256 requiredEthAmount = priceToChangeTokenSupply(oldSupply, oldSupply + tokenAmount);
+        sendEther(payable(s_feeCollector), requiredEthAmount * s_swapFee / DECIMALS);
         requiredEthAmount = requiredEthAmount * (1e18 + s_swapFee) / DECIMALS;
 
         Check.enoughEthSent(msg.value, requiredEthAmount);
@@ -147,6 +149,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
 
         uint256 oldSupply = getSupply(id);
         uint256 ethAmount = priceToChangeTokenSupply(oldSupply, oldSupply - tokenAmountToSell);
+        sendEther(payable(s_feeCollector), ethAmount * s_swapFee / DECIMALS);
         ethAmount = ethAmount * (1e18 - s_swapFee) / DECIMALS;
 
         if (expectedEthAmount != 0)
@@ -208,6 +211,10 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         s_swapFee = swapFee;
     }
 
+    function setTotalSupply(uint256 totalSupply) external onlyOwner {
+        s_maxSupply = totalSupply;
+    }
+
     /*//////////////////////////////////////////////////////////////
                                 GETTERS
     //////////////////////////////////////////////////////////////*/
@@ -229,6 +236,10 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         return s_swapFee;
     }
 
+    function getTotalSupply() external view returns (uint256) {
+        return s_maxSupply;
+    }
+
     /// Public ///
 
     function getSoftCap(uint256 id) public view returns (uint256) {
@@ -244,7 +255,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
     }
 
     function getMaxPresaleTokenAmount(uint256 id) public view returns (uint256) {
-        return s_projectFromId[id].initialTokenAmount / 2;
+        return s_maxSupply / 2;
     }
 
     function getMaxPresaleAmountThatCanBeRaised(uint256 id) public view returns (uint256) {
@@ -290,7 +301,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
     }
 
     function getSupply(uint256 id) public view returns (uint256) {
-        return s_projectFromId[id].initialTokenAmount - IERC20(s_projectFromId[id].token).balanceOf(address(this));
+        return s_maxSupply - IERC20(s_projectFromId[id].token).balanceOf(address(this));
     }
 
     // The cost to buy one token times tokens bought

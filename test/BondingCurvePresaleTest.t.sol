@@ -13,18 +13,17 @@ contract BondingCurvePresaleTest is Test {
     HelperConfig.NetworkConfig config;
 
     uint256 START_TIME = 1e5;
-    uint256 INVESTOR1_INITIAL_BALANCE = 31e18;
-    uint256 INVESTOR2_INITIAL_BALANCE = 51e18;
-    uint256 INVESTOR3_INITIAL_BALANCE = 4001e18;
+    uint256 INVESTOR1_INITIAL_BALANCE = 3e3*1e18;
+    uint256 INVESTOR2_INITIAL_BALANCE = 7e3*1e18;
+    uint256 INVESTOR3_INITIAL_BALANCE = 32e3*1e18;
     uint256 CREATOR_INITIAL_BALANCE = 6e18;
-    uint256 INVESTOR1_ETH_AMOUNT = 30e18;
-    uint256 INVESTOR2_ETH_AMOUNT = 50e18;
-    uint256 INVESTOR3_ETH_AMOUNT = 4000e18;
+    uint256 INVESTOR1_ETH_AMOUNT = 2.3e3*1e18; //2
+    uint256 INVESTOR2_ETH_AMOUNT = 6.3e3*1e18; //6
+    uint256 INVESTOR3_ETH_AMOUNT = 32e3*1e18; //30.7
     uint256 CREATOR_ETH_AMOUNT = 5e18;
-    uint256 INVESTOR1_TOKEN_BUY_AMOUNT = 100e18;
-    uint256 INVESTOR2_TOKEN_BUY_AMOUNT = 100e18;
-    uint256 INVESTOR3_TOKEN_BUY_AMOUNT = 400e18;
-    uint256 INITIAL_SUPPLY = 4000e18;
+    uint256 INVESTOR1_TOKEN_BUY_AMOUNT = 5e7*1e18;
+    uint256 INVESTOR2_TOKEN_BUY_AMOUNT = 5e7*1e18;
+    uint256 INVESTOR3_TOKEN_BUY_AMOUNT = 12e7*1e18;
 
     address feeCollector = address(uint160(vm.envUint("FEE_COLLECTOR")));
     address projectCreator = address(uint160(vm.envUint("PROJECT_CREATOR_ADDRESS")));
@@ -52,7 +51,6 @@ contract BondingCurvePresaleTest is Test {
         // Project creator creates presale
         vm.startPrank(projectCreator);
         presale.createPresale{value: CREATOR_ETH_AMOUNT}(
-            INITIAL_SUPPLY, // initial supply/amount
             START_TIME,
             START_TIME + 1000,
             "token name",
@@ -77,7 +75,6 @@ contract BondingCurvePresaleTest is Test {
 
         // // Check if project indeed failed
         // assert(presale.getSupply(id) == INVESTOR1_ETH_AMOUNT + INVESTOR2_ETH_AMOUNT);
-        // assert(presale.getSoftCap(id) == (INITIAL_SUPPLY / 2) * 3 / 10);
         assertEq(uint8(presale.getBCPProject(id).status), uint8(ProjectStatus.Failed), "Presale Not Failed");
 
         vm.startPrank(investor1);
@@ -103,7 +100,6 @@ contract BondingCurvePresaleTest is Test {
         // Project creator creates presale
         vm.startPrank(projectCreator);
         presale.createPresale{value: CREATOR_ETH_AMOUNT}(
-            INITIAL_SUPPLY, // initial supply/amount
             START_TIME,
             START_TIME + 1000,
             "token name",
@@ -142,10 +138,7 @@ contract BondingCurvePresaleTest is Test {
 
         console.log("Presale balance: ", address(presale).balance);
         uint256 feeCollectorBalanceBeforeWithdraw = feeCollector.balance;
-        vm.prank(feeCollector);
-        presale.withdrawFunds();
-        console.log("Presale balance after withdraw: ", address(presale).balance);
-        console.log("Fee collector balance increase after withdraw: ", feeCollector.balance - feeCollectorBalanceBeforeWithdraw);
+        console.log("Fee collector balance: ", feeCollector.balance - feeCollectorBalanceBeforeWithdraw);
     }
 
 

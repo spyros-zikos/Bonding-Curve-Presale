@@ -17,6 +17,7 @@ contract DeployBondingCurvePresale is Script {
             config.a,
             config.minInitialEthAmount,
             config.swapFee,
+            config.maxSupply,
             config.uniFactory,
             config.nonfungiblePositionManager,
             config.weth

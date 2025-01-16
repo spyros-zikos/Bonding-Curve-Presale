@@ -81,6 +81,13 @@ library Check {
         }
     }
 
+    function maxSupplyIsEvenNumber(uint256 initialTokenAmount) internal pure {
+        // Check if initial token amount is an even number
+        if (initialTokenAmount % 2 != 0) {
+            revert InitialTokenAmountMustBeEven(initialTokenAmount);
+        }
+    }
+
     function projectIsPending(bool pending, uint256 id) internal pure {
         // Check if project is pending
         if (!pending) {
@@ -189,7 +196,7 @@ library Check {
     function enoughEthSent(uint256 ethAmountSent, uint256 requiredEthAmount) internal pure {
         // Check if eth sent is enough
         if (ethAmountSent < requiredEthAmount) {
-            revert EthAmountLessThanRequired(requiredEthAmount, ethAmountSent);
+            revert EthAmountLessThanRequired(ethAmountSent, requiredEthAmount);
         }
     }
 
