@@ -89,7 +89,7 @@ contract HelperConfig is CodeConstants, Script {
             feeCollector: address(uint160(vm.envUint("FEE_COLLECTOR"))), // address of the private key
             creationFee: CREATION_FEE,
             a: 16e5, //0.001e18,
-            minInitialEthAmount: 5e18,
+            minInitialEthAmount: 0.005e18,
             swapFee: SWAP_FEE,
             maxSupply: MAX_SUPPLY,
             priceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
@@ -108,7 +108,7 @@ contract HelperConfig is CodeConstants, Script {
             // The amount of pol needed to buy half the supply is 
             // 16*(10^-13) * (10^9 / 2) * (10^9 / 2) / 2 = 2 * 10^5 ~= 100 thousand usd
             a: 16e5, // = 4*(10^-13), 
-            minInitialEthAmount: 5e18, // buys 1 million tokens
+            minInitialEthAmount: 5e18,
             swapFee: SWAP_FEE,
             maxSupply: MAX_SUPPLY,
             priceFeed: 0x694AA1769357215DE4FAC081bf1f309aDC325306,
