@@ -120,9 +120,9 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         }
 
         uint256 oldSupply = getSupply(id);
-        uint256 requiredEthAmount = priceToChangeTokenSupply(oldSupply, oldSupply + tokenAmount);
-        sendEther(payable(s_feeCollector), requiredEthAmount * s_swapFee / DECIMALS);
-        requiredEthAmount = requiredEthAmount * (1e18 + s_swapFee) / DECIMALS;
+        uint256 ethAmount = priceToChangeTokenSupply(oldSupply, oldSupply + tokenAmount);
+        uint256 requiredEthAmount = ethAmount * (1e18 + s_swapFee) / DECIMALS;
+        sendEther(payable(s_feeCollector), ethAmount * s_swapFee / DECIMALS);
 
         Check.enoughEthSent(msg.value, requiredEthAmount);
         if (expectedEthAmount != 0)
@@ -150,14 +150,14 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         uint256 oldSupply = getSupply(id);
         uint256 ethAmount = priceToChangeTokenSupply(oldSupply, oldSupply - tokenAmountToSell);
         sendEther(payable(s_feeCollector), ethAmount * s_swapFee / DECIMALS);
-        ethAmount = ethAmount * (1e18 - s_swapFee) / DECIMALS;
+        uint256 ethAmountAfterFee = ethAmount * (1e18 - s_swapFee) / DECIMALS;
 
         if (expectedEthAmount != 0)
-            Check.ethAmountIsNotLessThanExpected(ethAmount, expectedEthAmount);
+            Check.ethAmountIsNotLessThanExpected(ethAmountAfterFee, expectedEthAmount);
 
         s_projectFromId[id].raised -= ethAmount;
         IERC20(s_projectFromId[id].token).transferFrom(msg.sender, address(this), tokenAmountToSell);
-        sendEther(payable(msg.sender), ethAmount);
+        sendEther(payable(msg.sender), ethAmountAfterFee);
         emit UserSoldTokens(id, msg.sender, tokenAmountToSell, ethAmount);
     }
 
