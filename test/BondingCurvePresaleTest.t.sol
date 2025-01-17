@@ -67,7 +67,7 @@ contract BondingCurvePresaleTest is Test {
         _investorBuysTokens(START_TIME + 101, investor2, INVESTOR2_ETH_AMOUNT, INVESTOR2_TOKEN_BUY_AMOUNT, id, token);
         
         console.log("getSupply: ", presale.getSupply(id));
-        console.log("getSoftCap: ", presale.getSoftCap(id));
+        console.log("getSoftCap: ", presale.getSoftCap());
 
 
         _feeCollectorEndsPresale(START_TIME + 1001, id);
@@ -78,7 +78,7 @@ contract BondingCurvePresaleTest is Test {
         assertEq(uint8(presale.getBCPProject(id).status), uint8(ProjectStatus.Failed), "Presale Not Failed");
 
         vm.startPrank(investor1);
-        token.approve(address(presale), type(uint256).max);
+        // token.approve(address(presale), type(uint256).max);
         vm.warp(START_TIME + 1002);
         presale.leaveUnsuccessfulProjectPresale(id);
         vm.stopPrank();
@@ -86,7 +86,7 @@ contract BondingCurvePresaleTest is Test {
         console.log("investor1 balance: ", investor1.balance);
 
         vm.startPrank(investor2);
-        token.approve(address(presale), type(uint256).max);
+        // token.approve(address(presale), type(uint256).max);
         vm.warp(START_TIME + 1003);
         presale.leaveUnsuccessfulProjectPresale(id);
         vm.stopPrank();
@@ -130,7 +130,7 @@ contract BondingCurvePresaleTest is Test {
 
         // Reverts
         vm.startPrank(investor1);
-        token.approve(address(presale), type(uint256).max);
+        // token.approve(address(presale), type(uint256).max);
         vm.warp(START_TIME + 1002);
         vm.expectRevert();
         presale.leaveUnsuccessfulProjectPresale(id);
@@ -155,8 +155,8 @@ contract BondingCurvePresaleTest is Test {
 
     function _investorSellsTokens(uint256 time, address investor, uint256 tokenAmount, uint256 id, IERC20 token) private {
         vm.warp(time);
-        vm.prank(investor);
-        token.approve(address(presale), type(uint256).max);
+        // vm.prank(investor);
+        // token.approve(address(presale), type(uint256).max);
         vm.prank(investor);
         presale.sellTokens(id, tokenAmount, 0);
         console.log("total tokens owed: ", presale.getSupply(id));

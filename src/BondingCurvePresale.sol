@@ -98,6 +98,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         });
         emit ProjectCreated(s_lastProjectId, address(token), s_maxSupply, startTime, endTime);
 
+        // Maybe leakage of ether ?
         uint256 tokensToBuy = estimateTokensFromInitialPrice(msg.value * (1e18 - s_swapFee) / DECIMALS);
         buyTokens(s_lastProjectId, tokensToBuy, 0);
     }
@@ -240,26 +241,26 @@ contract BondingCurvePresale is PoolDeployer, Presale {
         return s_maxSupply;
     }
 
+    function getMaxPresaleAmountThatCanBeRaised() external view returns (uint256) {
+        return priceToChangeTokenSupply(0, getMaxPresaleTokenAmount());
+    }
+
     /// Public ///
 
-    function getSoftCap(uint256 id) public view returns (uint256) {
-        return getMaxPresaleTokenAmount(id) * s_softcapPercentage / DECIMALS;
+    function getSoftCap() public view returns (uint256) {
+        return getMaxPresaleTokenAmount() * s_softcapPercentage / DECIMALS;
     }
 
     function getRemainingTokens(uint256 id) public view returns (uint256) {
         // max tokens that can be presold
-        uint256 maxTokensToBeDistributed = getMaxPresaleTokenAmount(id);
+        uint256 maxTokensToBeDistributed = getMaxPresaleTokenAmount();
         // tokens that can be presold
         uint256 remainingTokens = maxTokensToBeDistributed - getSupply(id);
         return remainingTokens;
     }
 
-    function getMaxPresaleTokenAmount(uint256 id) public view returns (uint256) {
+    function getMaxPresaleTokenAmount() public view returns (uint256) {
         return s_maxSupply / 2;
-    }
-
-    function getMaxPresaleAmountThatCanBeRaised(uint256 id) public view returns (uint256) {
-        return priceToChangeTokenSupply(0, getMaxPresaleTokenAmount(id));
     }
 
     function projectHasEnded(uint256 id) public view returns (bool) {
@@ -267,7 +268,7 @@ contract BondingCurvePresale is PoolDeployer, Presale {
     }
 
     function projectSuccessful(uint256 id) public view returns (bool) {
-        return getSupply(id) >= getSoftCap(id);
+        return getSupply(id) >= getSoftCap();
     }
 
     function contributorExists(uint256 id, address _contributor) public view returns(bool) {

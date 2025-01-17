@@ -1,4 +1,4 @@
 ----- sepolia -----
-regular presale: 0x23A086914561A3F48a045571B37483DDE065C64d
-bonding curve presale: 0xA1e6d821a1e5F872a8d926Aa771720e8f67198B1
+regular presale: 0x556825C210e185f0c5EeaCf9468135cE9f8254d4
+bonding curve presale: 0x95e67034A3A6Ff7F40F4d6f4320854b338b8641e
 erc20ownable: 0x3EBAc179b6B6f93f1Edd3Ab9d4716d4b8DB4D41F
